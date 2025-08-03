@@ -1,0 +1,169 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: student-bot-postgres
+    environment:
+      POSTGRES_DB: studentbot
+      POSTGRES_USER: studentbot
+      POSTGRES_PASSWORD: studentbot123
+      POSTGRES_HOST_AUTH_METHOD: md5
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./src/main/resources/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - student-bot-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studentbot -d studentbot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: student-bot-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - student-bot-network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # MinIO Client для создания bucket
+  minio-setup:
+    image: minio/mc:latest
+    container_name: student-bot-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - student-bot-network
+    entrypoint: >
+      /bin/sh -c "
+      until mc config host add minio http://minio:9000 minioadmin minioadmin123; do
+        echo 'Waiting for MinIO to be ready...';
+        sleep 1;
+      done;
+      mc mb minio/books --ignore-existing;
+      mc mb minio/documents --ignore-existing;
+      mc policy set public minio/books;
+      mc policy set public minio/documents;
+      echo 'MinIO setup completed';
+      "
+
+  # Ollama AI Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: student-bot-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - student-bot-network
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Ollama Model Setup
+  ollama-setup:
+    image: ollama/ollama:latest
+    container_name: student-bot-ollama-setup
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - student-bot-network
+    entrypoint: >
+      /bin/sh -c "
+      until curl -f http://ollama:11434/api/version; do
+        echo 'Waiting for Ollama to be ready...';
+        sleep 5;
+      done;
+      echo 'Pulling models...';
+      ollama --host http://ollama:11434 pull llama2:7b-chat;
+      ollama --host http://ollama:11434 pull codellama:7b;
+      echo 'Models setup completed';
+      "
+
+  # AI Service (Python FastAPI)
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: student-bot-ai-service
+    ports:
+      - "8000:8000"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - student-bot-network
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Main Spring Boot Application
+  student-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: student-bot-app
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    networks:
+      - student-bot-network
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/studentbot
+      - SPRING_DATASOURCE_USERNAME=studentbot
+      - SPRING_DATASOURCE_PASSWORD=studentbot123
+      - MINIO_URL=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - AI_SERVICE_URL=http://ai-service:8000
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME}
+    volumes:
+      - ./logs:/app/logs
+
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+  ollama_data:
+    driver: local
+
+networks:
+  student-bot-network:
+    driver: bridge
