@@ -4,7 +4,7 @@ server:
 spring:
   application:
     name: student-helper-bot
-  
+
   # Database configuration
   datasource:
     url: jdbc:postgresql://localhost:5432/studentbot
@@ -16,7 +16,7 @@ spring:
       minimum-idle: 5
       connection-timeout: 20000
       idle-timeout: 300000
-      
+
   # JPA configuration
   jpa:
     hibernate:
@@ -29,12 +29,18 @@ spring:
         jdbc:
           lob:
             non_contextual_creation: true
-  
+
   # Jackson configuration
   jackson:
     serialization:
       write-dates-as-timestamps: false
     default-property-inclusion: NON_NULL
+
+  # Multipart file upload configuration
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
 
 # Telegram Bot Configuration
 telegram:
@@ -51,13 +57,25 @@ minio:
     books: books
     documents: documents
 
-# AI Service Configuration
+# AI API Configuration
 ai:
-  service:
-    url: ${AI_SERVICE_URL:http://localhost:8000}
-    timeout: 30000
-    max-tokens: 2000
-    temperature: 0.7
+  api:
+    provider: ${AI_API_PROVIDER:openrouter}  # openrouter, gemini
+    key: ${AI_API_KEY}
+
+  # OpenRouter settings
+  openrouter:
+    base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
+    model: ${OPENROUTER_MODEL:google/gemini-2.0-flash-exp:free}
+
+  # Gemini settings
+  gemini:
+    base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
+    model: ${GEMINI_MODEL:gemini-2.5-flash}
+
+  # General AI settings
+  max-tokens: ${AI_MAX_TOKENS:2000}
+  temperature: ${AI_TEMPERATURE:0.7}
 
 # Logging configuration
 logging:

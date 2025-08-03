@@ -16,22 +16,22 @@ import java.util.concurrent.Executor;
  */
 @Configuration
 public class AppConfig {
-    
+
     @Bean
     public RestTemplate restTemplate(RestTemplateBuilder builder) {
         return builder
-                .setConnectTimeout(Duration.ofSeconds(600_000)) // было 30 сукунд
-                .setReadTimeout(Duration.ofSeconds(600_000)) // было 60 сукунд
+                .setConnectTimeout(Duration.ofSeconds(30))
+                .setReadTimeout(Duration.ofSeconds(60))
                 .build();
     }
-    
+
     @Bean
     public ObjectMapper objectMapper() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
         return mapper;
     }
-    
+
     @Bean(name = "taskExecutor")
     public Executor taskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

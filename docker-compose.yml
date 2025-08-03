@@ -66,66 +66,6 @@ services:
       echo 'MinIO setup completed';
       "
 
-  # Ollama AI Service
-  ollama:
-    image: ollama/ollama:latest
-    container_name: student-bot-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - student-bot-network
-    environment:
-      - OLLAMA_HOST=0.0.0.0
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  # Ollama Model Setup
-  ollama-setup:
-    image: ollama/ollama:latest
-    container_name: student-bot-ollama-setup
-    depends_on:
-      ollama:
-        condition: service_healthy
-    networks:
-      - student-bot-network
-    entrypoint: >
-      /bin/sh -c "
-      until curl -f http://ollama:11434/api/version; do
-        echo 'Waiting for Ollama to be ready...';
-        sleep 5;
-      done;
-      echo 'Pulling models...';
-      ollama --host http://ollama:11434 pull llama2:7b-chat;
-      ollama --host http://ollama:11434 pull codellama:7b;
-      echo 'Models setup completed';
-      "
-
-  # AI Service (Python FastAPI)
-  ai-service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    container_name: student-bot-ai-service
-    ports:
-      - "8000:8000"
-    depends_on:
-      ollama:
-        condition: service_healthy
-    networks:
-      - student-bot-network
-    environment:
-      - OLLAMA_BASE_URL=http://ollama:11434
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
   # Main Spring Boot Application
   student-bot:
     build:
@@ -139,8 +79,6 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-      ai-service:
-        condition: service_healthy
     networks:
       - student-bot-network
     environment:
@@ -150,9 +88,12 @@ services:
       - MINIO_URL=http://minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin123
-      - AI_SERVICE_URL=http://ai-service:8000
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME}
+      - AI_API_PROVIDER=${AI_API_PROVIDER:openrouter}
+      - AI_API_KEY=${AI_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:google/gemini-2.0-flash-exp:free}
+      - GEMINI_MODEL=${GEMINI_MODEL:gemini-2.5-flash}
     volumes:
       - ./logs:/app/logs
 
@@ -160,8 +101,6 @@ volumes:
   postgres_data:
     driver: local
   minio_data:
-    driver: local
-  ollama_data:
     driver: local
 
 networks:
