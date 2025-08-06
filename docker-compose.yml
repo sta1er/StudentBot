@@ -90,10 +90,10 @@ services:
       - MINIO_SECRET_KEY=minioadmin123
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME}
-      - AI_API_PROVIDER=${AI_API_PROVIDER:openrouter}
+      - AI_API_PROVIDER=${AI_API_PROVIDER}
       - AI_API_KEY=${AI_API_KEY}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL:google/gemini-2.0-flash-exp:free}
-      - GEMINI_MODEL=${GEMINI_MODEL:gemini-2.5-flash}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+      - GEMINI_MODEL=${GEMINI_MODEL}
     volumes:
       - ./logs:/app/logs
 

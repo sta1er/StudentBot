@@ -255,7 +255,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
 
             java.io.File downloadFile = java.io.File.createTempFile("studentbot-", fileName);
             downloadFile.deleteOnExit();
-            downloadFile(telegramFile.getFileId(), downloadFile);
+            downloadFile(telegramFile.getFilePath(), downloadFile);
 
             try (InputStream inputStream = new FileInputStream(downloadFile)) {
                 bookService.uploadDocument(
