@@ -21,7 +21,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -39,14 +39,23 @@ spring:
   # Multipart file upload configuration
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
+      max-file-size: 500MB
+      max-request-size: 500MB
 
 # Telegram Bot Configuration
 telegram:
   bot:
     token: ${TELEGRAM_BOT_TOKEN}
     username: ${TELEGRAM_BOT_USERNAME}
+
+# Mini App Configuration
+miniapp:
+  url: ${MINIAPP_URL:https://your-domain.com/miniapp}
+  cors:
+    allowed-origins:
+      - https://web.telegram.org
+      - https://telegram.org
+      - https://your-domain.com
 
 # MinIO Configuration
 minio:
@@ -60,7 +69,7 @@ minio:
 # AI API Configuration
 ai:
   api:
-    provider: ${AI_API_PROVIDER:openrouter}  # openrouter, gemini
+    provider: ${AI_API_PROVIDER:openrouter} # openrouter, gemini
     key: ${AI_API_KEY}
 
   # OpenRouter settings
@@ -77,12 +86,55 @@ ai:
   max-tokens: ${AI_MAX_TOKENS:2000}
   temperature: ${AI_TEMPERATURE:0.7}
 
+# Subscription Configuration
+subscription:
+  tiers:
+    free:
+      max-books: 5
+      max-file-size-mb: 100
+      price: 0
+    premium:
+      max-books: 25
+      max-file-size-mb: 500
+      price: 9.99
+    business:
+      max-books: 100
+      max-file-size-mb: 1000
+      price: 29.99
+
+  payment:
+    enabled: ${PAYMENT_ENABLED:false}
+    provider: ${PAYMENT_PROVIDER:stripe}
+    webhook-secret: ${PAYMENT_WEBHOOK_SECRET}
+
+# File Upload Limits
+file:
+  upload:
+    max-size-mb: 500
+    allowed-types:
+      - application/pdf
+      - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      - text/plain
+    virus-scan:
+      enabled: ${VIRUS_SCAN_ENABLED:false}
+
+# Security Configuration
+security:
+  jwt:
+    secret: ${JWT_SECRET:your-secret-key-change-in-production}
+    expiration: ${JWT_EXPIRATION:86400} # 24 hours
+  rate-limiting:
+    enabled: ${RATE_LIMITING_ENABLED:true}
+    requests-per-minute: 60
+    requests-per-hour: 1000
+
 # Logging configuration
 logging:
   level:
     com.example.studentbot: INFO
-    org.springframework: INFO
+    org.springframework: WARN
     org.hibernate: WARN
+    org.telegram: WARN
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n"
@@ -96,7 +148,35 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
+      cors:
+        allowed-origins: "*"
+        allowed-methods: GET,POST
   endpoint:
     health:
       show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Cache Configuration
+cache:
+  redis:
+    enabled: ${REDIS_ENABLED:false}
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    timeout: 2000ms
+
+# Feature Flags
+features:
+  mini-app:
+    enabled: true
+    file-upload: true
+    subscription-management: true
+  ai:
+    enabled: true
+    multi-model: true
+  analytics:
+    enabled: ${ANALYTICS_ENABLED:false}
+    service: ${ANALYTICS_SERVICE:google}

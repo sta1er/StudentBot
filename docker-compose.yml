@@ -23,6 +23,22 @@ services:
       timeout: 5s
       retries: 5
 
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: student-bot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - student-bot-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
   # MinIO Object Storage
   minio:
     image: minio/minio:latest
@@ -61,19 +77,20 @@ services:
       done;
       mc mb minio/books --ignore-existing;
       mc mb minio/documents --ignore-existing;
-      mc policy set public minio/books;
-      mc policy set public minio/documents;
+      mc anonymous set public minio/books;
+      mc anonymous set public minio/documents;
       echo 'MinIO setup completed';
       "
 
-  # Main Spring Boot Application
+  # Main Spring Boot Application with Mini App
   student-bot:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile-updated
     container_name: student-bot-app
     ports:
       - "8080:8080"
+      - "80:80"
     depends_on:
       postgres:
         condition: service_healthy
@@ -82,25 +99,109 @@ services:
     networks:
       - student-bot-network
     environment:
+      # Database
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/studentbot
       - SPRING_DATASOURCE_USERNAME=studentbot
       - SPRING_DATASOURCE_PASSWORD=studentbot123
+
+      # MinIO
       - MINIO_URL=http://minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin123
+
+      # Redis
+      - REDIS_ENABLED=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+      # Telegram
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME}
-      - AI_API_PROVIDER=${AI_API_PROVIDER}
+
+      # Mini App
+      - MINIAPP_URL=${MINIAPP_URL:-https://localhost/miniapp}
+
+      # AI
+      - AI_API_PROVIDER=${AI_API_PROVIDER:-openrouter}
       - AI_API_KEY=${AI_API_KEY}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
-      - GEMINI_MODEL=${GEMINI_MODEL}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+
+      # Features
+      - PAYMENT_ENABLED=${PAYMENT_ENABLED:-false}
+      - ANALYTICS_ENABLED=${ANALYTICS_ENABLED:-false}
+      - RATE_LIMITING_ENABLED=true
+      - VIRUS_SCAN_ENABLED=false
+
+      # Security
+      - JWT_SECRET=${JWT_SECRET:-change-this-in-production}
+
     volumes:
       - ./logs:/app/logs
+      - ./miniapp:/app/miniapp:ro  # Mini App файлы только для чтения
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Nginx Load Balancer (для масштабирования)
+  nginx-lb:
+    image: nginx:alpine
+    container_name: student-bot-nginx
+    ports:
+      - "443:443"
+    depends_on:
+      - student-bot
+    networks:
+      - student-bot-network
+    volumes:
+      - ./nginx-lb.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro  # SSL сертификаты
+    profiles:
+      - production  # Только для продакшн-среды
+
+  # Monitoring (Prometheus + Grafana)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: student-bot-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - student-bot-network
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: student-bot-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana-datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - student-bot-network
+    profiles:
+      - monitoring
 
 volumes:
   postgres_data:
     driver: local
+  redis_data:
+    driver: local
   minio_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
     driver: local
 
 networks:

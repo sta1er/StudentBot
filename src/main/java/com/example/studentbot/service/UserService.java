@@ -13,24 +13,24 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Сервис для работы с пользователями
+ * Обновленный сервис для работы с пользователями с поддержкой лимитов
  */
 @Service
 @Transactional
 public class UserService {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
-    
+
     @Autowired
     private UserRepository userRepository;
-    
+
     /**
      * Регистрация нового пользователя или обновление существующего
      */
-    public User registerOrUpdateUser(Long telegramId, String firstName, String lastName, 
-                                   String username, String languageCode) {
+    public User registerOrUpdateUser(Long telegramId, String firstName, String lastName,
+                                     String username, String languageCode) {
         Optional<User> existingUser = userRepository.findByTelegramId(telegramId);
-        
+
         if (existingUser.isPresent()) {
             // Обновляем информацию о существующем пользователе
             User user = existingUser.get();
@@ -39,19 +39,19 @@ public class UserService {
             user.setUsername(username);
             user.setLanguageCode(languageCode != null ? languageCode : "ru");
             user.setLastActivityDate(LocalDateTime.now());
-            
+
             logger.info("Обновлена информация пользователя: {}", telegramId);
             return userRepository.save(user);
         } else {
             // Создаем нового пользователя
-            User newUser = new User(telegramId, firstName, lastName, username, 
-                                  languageCode != null ? languageCode : "ru");
-            
+            User newUser = new User(telegramId, firstName, lastName, username,
+                    languageCode != null ? languageCode : "ru");
+
             logger.info("Зарегистрирован новый пользователь: {} ({})", firstName, telegramId);
             return userRepository.save(newUser);
         }
     }
-    
+
     /**
      * Получить пользователя по Telegram ID
      */
@@ -59,15 +59,14 @@ public class UserService {
     public Optional<User> getUserByTelegramId(Long telegramId) {
         return userRepository.findByTelegramId(telegramId);
     }
-    
+
     /**
-     * Получить пользователя по username
+     * Обновить пользователя
      */
-    @Transactional(readOnly = true)
-    public Optional<User> getUserByUsername(String username) {
-        return userRepository.findByUsername(username);
+    public User updateUser(User user) {
+        return userRepository.save(user);
     }
-    
+
     /**
      * Обновить время последней активности пользователя
      */
@@ -78,19 +77,66 @@ public class UserService {
             userRepository.save(user.get());
         }
     }
-    
+
     /**
-     * Обновить предпочтения пользователя
+     * Обновить подписку пользователя
      */
-    public void updateUserPreferences(Long telegramId, String preferences) {
-        Optional<User> user = userRepository.findByTelegramId(telegramId);
-        if (user.isPresent()) {
-            user.get().setPreferences(preferences);
-            userRepository.save(user.get());
-            logger.info("Обновлены предпочтения пользователя: {}", telegramId);
+    public void updateUserSubscription(Long telegramId, User.SubscriptionTier newTier) {
+        Optional<User> userOpt = userRepository.findByTelegramId(telegramId);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            user.updateSubscriptionTier(newTier);
+
+            // Устанавливаем дату окончания подписки (30 дней для премиум тарифов)
+            if (newTier != User.SubscriptionTier.FREE) {
+                user.setSubscriptionExpiryDate(LocalDateTime.now().plusDays(30));
+            } else {
+                user.setSubscriptionExpiryDate(null);
+            }
+
+            userRepository.save(user);
+            logger.info("Обновлена подписка пользователя {} на тариф {}", telegramId, newTier);
         }
     }
-    
+
+    /**
+     * Проверить и обновить истекшие подписки
+     */
+    @Transactional
+    public void checkExpiredSubscriptions() {
+        List<User> expiredUsers = userRepository.findAll().stream()
+                .filter(user -> user.getSubscriptionExpiryDate() != null)
+                .filter(user -> user.getSubscriptionExpiryDate().isBefore(LocalDateTime.now()))
+                .toList();
+
+        for (User user : expiredUsers) {
+            user.updateSubscriptionTier(User.SubscriptionTier.FREE);
+            user.setSubscriptionExpiryDate(null);
+            userRepository.save(user);
+            logger.info("Подписка пользователя {} истекла, переведен на тариф FREE", user.getTelegramId());
+        }
+    }
+
+    /**
+     * Получить статистику использования пользователем
+     */
+    @Transactional(readOnly = true)
+    public UserUsageStats getUserUsageStats(Long telegramId) {
+        Optional<User> userOpt = userRepository.findByTelegramId(telegramId);
+        if (userOpt.isEmpty()) {
+            return null;
+        }
+
+        User user = userOpt.get();
+        return new UserUsageStats(
+                user.getUploadedBooksCount(),
+                user.getMaxBooks(),
+                user.getMaxFileSizeMB(),
+                user.getSubscriptionTier(),
+                user.getSubscriptionExpiryDate()
+        );
+    }
+
     /**
      * Получить всех активных пользователей
      */
@@ -98,7 +144,7 @@ public class UserService {
     public List<User> getActiveUsers() {
         return userRepository.findByStatus(User.UserStatus.ACTIVE);
     }
-    
+
     /**
      * Получить пользователей по языковому коду
      */
@@ -106,24 +152,7 @@ public class UserService {
     public List<User> getUsersByLanguage(String languageCode) {
         return userRepository.findByLanguageCode(languageCode);
     }
-    
-    /**
-     * Получить активных пользователей за последние дни
-     */
-    @Transactional(readOnly = true)
-    public List<User> getActiveUsersSince(int days) {
-        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(days);
-        return userRepository.findActiveUsersSince(cutoffDate);
-    }
-    
-    /**
-     * Поиск пользователей по имени
-     */
-    @Transactional(readOnly = true)
-    public List<User> searchUsersByName(String name) {
-        return userRepository.findByNameContaining(name);
-    }
-    
+
     /**
      * Заблокировать пользователя
      */
@@ -135,7 +164,7 @@ public class UserService {
             logger.warn("Пользователь {} заблокирован", telegramId);
         }
     }
-    
+
     /**
      * Разблокировать пользователя
      */
@@ -147,7 +176,7 @@ public class UserService {
             logger.info("Пользователь {} разблокирован", telegramId);
         }
     }
-    
+
     /**
      * Проверить, заблокирован ли пользователь
      */
@@ -156,51 +185,31 @@ public class UserService {
         Optional<User> user = userRepository.findByTelegramId(telegramId);
         return user.map(u -> u.getStatus() == User.UserStatus.BLOCKED).orElse(false);
     }
-    
+
     /**
-     * Получить статистику пользователей
+     * Класс для статистики использования пользователя
      */
-    @Transactional(readOnly = true)
-    public UserStatistics getUserStatistics() {
-        Long totalUsers = userRepository.count();
-        Long activeUsers = userRepository.countByStatus(User.UserStatus.ACTIVE);
-        Long blockedUsers = userRepository.countByStatus(User.UserStatus.BLOCKED);
-        
-        return new UserStatistics(totalUsers, activeUsers, blockedUsers);
-    }
-    
-    /**
-     * Удалить неактивных пользователей (старше N дней)
-     */
-    public int cleanupInactiveUsers(int inactiveDays) {
-        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(inactiveDays);
-        List<User> inactiveUsers = userRepository.findAll().stream()
-                .filter(user -> user.getLastActivityDate().isBefore(cutoffDate))
-                .filter(user -> user.getStatus() != User.UserStatus.ACTIVE)
-                .toList();
-        
-        userRepository.deleteAll(inactiveUsers);
-        
-        logger.info("Удалено {} неактивных пользователей", inactiveUsers.size());
-        return inactiveUsers.size();
-    }
-    
-    /**
-     * Класс для статистики пользователей
-     */
-    public static class UserStatistics {
-        private final Long totalUsers;
-        private final Long activeUsers;
-        private final Long blockedUsers;
-        
-        public UserStatistics(Long totalUsers, Long activeUsers, Long blockedUsers) {
-            this.totalUsers = totalUsers;
-            this.activeUsers = activeUsers;
-            this.blockedUsers = blockedUsers;
+    public static class UserUsageStats {
+        private final Integer currentBooksCount;
+        private final Integer maxBooks;
+        private final Long maxFileSizeMB;
+        private final User.SubscriptionTier subscriptionTier;
+        private final LocalDateTime subscriptionExpiryDate;
+
+        public UserUsageStats(Integer currentBooksCount, Integer maxBooks, Long maxFileSizeMB,
+                              User.SubscriptionTier subscriptionTier, LocalDateTime subscriptionExpiryDate) {
+            this.currentBooksCount = currentBooksCount;
+            this.maxBooks = maxBooks;
+            this.maxFileSizeMB = maxFileSizeMB;
+            this.subscriptionTier = subscriptionTier;
+            this.subscriptionExpiryDate = subscriptionExpiryDate;
         }
-        
-        public Long getTotalUsers() { return totalUsers; }
-        public Long getActiveUsers() { return activeUsers; }
-        public Long getBlockedUsers() { return blockedUsers; }
+
+        // Getters
+        public Integer getCurrentBooksCount() { return currentBooksCount; }
+        public Integer getMaxBooks() { return maxBooks; }
+        public Long getMaxFileSizeMB() { return maxFileSizeMB; }
+        public User.SubscriptionTier getSubscriptionTier() { return subscriptionTier; }
+        public LocalDateTime getSubscriptionExpiryDate() { return subscriptionExpiryDate; }
     }
 }
