@@ -10,7 +10,7 @@ class TelegramMiniApp {
             maxFileSizeMB: 100,
             subscription: 'FREE'
         };
-        this.apiBaseUrl = 'https://your-domain.com/api/miniapp';
+        this.apiBaseUrl = 'https://luvtok.ru/api/miniapp';
         this.supportedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
         this.maxFileSizes = { FREE: 100, PREMIUM: 500, BUSINESS: 1000 };
         this.maxBooks = { FREE: 5, PREMIUM: 25, BUSINESS: 100 };
