@@ -1,18 +1,22 @@
-# Dockerfile с поддержкой Mini App
+# Dockerfile с исправлениями для Mini App
 FROM openjdk:17-jdk-slim
 
 LABEL maintainer="Student Bot Team"
 LABEL description="Student Helper Telegram Bot with Mini App Support"
 
-# Установка системных зависимостей
+# Установка системных зависимостей включая sudo
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
     nginx \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # Создание пользователя для приложения
 RUN useradd --create-home --shell /bin/bash student-bot
+
+# Добавляем пользователя в sudoers
+RUN echo "student-bot ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 # Создание директорий
 RUN mkdir -p /app/logs /app/miniapp /etc/nginx/sites-available /etc/nginx/sites-enabled && \
@@ -21,6 +25,9 @@ RUN mkdir -p /app/logs /app/miniapp /etc/nginx/sites-available /etc/nginx/sites-
 # Настройка Nginx для Mini App
 COPY nginx.conf /etc/nginx/sites-available/default
 RUN ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+
+# Удаляем дефолтную конфигурацию nginx
+RUN rm -f /etc/nginx/sites-enabled/default-orig
 
 # Установка рабочей директории
 WORKDIR /app
@@ -35,6 +42,14 @@ COPY miniapp/ /app/miniapp/
 # Изменение владельца файлов
 RUN chown -R student-bot:student-bot /app
 
+# Создание исправленного стартового скрипта
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Starting Nginx..."\n\
+sudo service nginx start\n\
+echo "Starting Spring Boot application..."\n\
+java $JAVA_OPTS -jar app.jar' > start.sh && chmod +x start.sh
+
 # Переключение на пользователя приложения
 USER student-bot
 
@@ -47,15 +62,6 @@ EXPOSE 8080 80
 
 # Параметры JVM
 ENV JAVA_OPTS="-Xmx1024m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
-
-# Создание стартового скрипта
-RUN echo '#!/bin/bash\n\
-set -e\n\
-echo "Starting Nginx..."\n\
-sudo nginx -g "daemon off;" &\n\
-echo "Starting Spring Boot application..."\n\
-java $JAVA_OPTS -jar app.jar\n\
-wait' > start.sh && chmod +x start.sh
 
 # Запуск приложения
 ENTRYPOINT ["./start.sh"]
