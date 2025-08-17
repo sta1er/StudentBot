@@ -73,8 +73,10 @@ public class MiniAppController {
             );
 
             logger.info("Успешная аутентификация пользователя: {}", user.getTelegramId());
-            return ResponseEntity.ok(response);
-
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "user", response
+            ));
         } catch (Exception e) {
             logger.error("Ошибка аутентификации: {}", e.getMessage(), e);
             return ResponseEntity.status(500).body(Map.of("error", "Authentication failed"));
