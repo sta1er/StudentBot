@@ -84,7 +84,7 @@ services:
   student-bot:
     build:
       context: .
-      dockerfile: Dockerfile-updated
+      dockerfile: Dockerfile
     container_name: student-bot-app
     ports:
       - "8080:8080"
