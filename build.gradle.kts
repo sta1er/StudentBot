@@ -27,6 +27,8 @@ dependencies {
     implementation("io.minio:minio:8.5.4")
     implementation("org.telegram:telegrambots-meta:6.8.0")
     implementation("org.telegram:telegrambots:6.8.0")
+    implementation("javax.annotation:javax.annotation-api:1.3.2")
+
 }
 
 tasks.withType<Test> {

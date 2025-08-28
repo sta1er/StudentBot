@@ -3,150 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Загрузка книг</title>
+    <title>StudentBot - Ваш помощник для изучения</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-    <!-- Экран загрузки -->
-    <div id="loading-screen" class="screen active">
-        <div class="loading-container">
-            <div class="spinner"></div>
-            <h2>Загрузка...</h2>
-            <p>Подождите, выполняется аутентификация</p>
-        </div>
+<!-- Экран загрузки -->
+<div id="loading-screen" class="screen active">
+    <div class="loading-container">
+        <div class="spinner"></div>
+        <h3>Загрузка...</h3>
+        <p>Подключение к вашему аккаунту</p>
     </div>
+</div>
 
-    <!-- Экран ошибки аутентификации -->
-    <div id="auth-error-screen" class="screen">
-        <div class="error-container">
-            <div class="error-icon">⚠️</div>
-            <h2>Ошибка аутентификации</h2>
-            <p id="auth-error-message">Не удалось подтвердить вашу личность</p>
-            <button class="btn btn--primary" onclick="window.location.reload()">
-                Попробовать снова
+<!-- Экран ошибки аутентификации -->
+<div id="auth-error-screen" class="screen">
+    <div class="error-container">
+        <div class="error-icon">⚠️</div>
+        <h2>Ошибка аутентификации</h2>
+        <p class="error-message">Не удалось подтвердить вашу личность</p>
+        <button class="btn btn--primary" onclick="location.reload()">
+            Попробовать снова
+        </button>
+    </div>
+</div>
+
+<!-- Основной экран приложения -->
+<div id="main-screen" class="screen">
+    <!-- Заголовок приложения -->
+    <header class="app-header">
+        <div class="user-info">
+            <div class="avatar" id="user-avatar">
+                👤
+            </div>
+            <div class="user-details">
+                <h3 id="user-name">Загрузка...</h3>
+                <span class="subscription-badge" id="user-subscription">FREE</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Основной контент -->
+    <main class="app-main">
+        <!-- Статистика библиотеки -->
+        <section class="card">
+            <div class="card-header">
+                <h4>📚 Ваша библиотека</h4>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-label">Загружено книг</div>
+                    <div class="stat-value">
+                        <span id="books-count">0</span> из <span id="books-limit">5</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="books-progress" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Максимальный размер файла</div>
+                    <div class="stat-value" id="file-size-limit">100 МБ</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Загрузка файлов -->
+        <section class="card">
+            <div class="card-header">
+                <h4>📤 Загрузить книгу</h4>
+            </div>
+            <div class="upload-area" id="upload-area">
+                <div class="upload-icon">📄</div>
+                <h4>Перетащите файл сюда или нажмите для выбора</h4>
+                <p>Поддерживаемые форматы: PDF, DOCX, TXT</p>
+                <button class="btn btn--primary upload-btn" id="upload-btn">
+                    Выбрать файл
+                </button>
+                <input type="file" id="file-input" accept=".pdf,.docx,.txt" style="display: none;">
+                <div class="file-info">
+                    <small>Максимальный размер файла зависит от вашего тарифного плана</small>
+                </div>
+            </div>
+        </section>
+
+        <!-- Список книг -->
+        <section class="card">
+            <div class="card-header">
+                <h4>📖 Ваши книги</h4>
+            </div>
+            <div class="books-list" id="books-list">
+                <div class="empty-state">
+                    <div class="empty-icon">📚</div>
+                    <p>У вас пока нет загруженных книг</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Карточка подписки -->
+        <section class="card subscription-card">
+            <div class="card-header">
+                <h4>💎 Увеличьте лимиты</h4>
+            </div>
+            <p>Получите больше места для ваших книг с премиум подпиской</p>
+            <div class="subscription-tiers">
+                <div class="tier">
+                    <strong>Premium:</strong> 25 книг, до 500 МБ
+                </div>
+                <div class="tier">
+                    <strong>Business:</strong> 100 книг, до 1 ГБ
+                </div>
+            </div>
+            <button class="btn btn--outline subscription-btn">
+                Узнать больше
+            </button>
+        </section>
+    </main>
+</div>
+
+<!-- Модальное окно подтверждения -->
+<div id="confirm-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+        <h3 id="modal-title">Подтверждение</h3>
+        <p id="modal-message">Вы уверены?</p>
+        <div class="modal-actions">
+            <button class="btn btn--outline" onclick="this.closest('.modal').classList.add('hidden')">
+                Отмена
+            </button>
+            <button class="btn btn--primary" id="modal-confirm">
+                Подтвердить
             </button>
         </div>
     </div>
+</div>
 
-    <!-- Основной экран приложения -->
-    <div id="main-screen" class="screen">
-        <header class="app-header">
-            <div class="user-info">
-                <div class="avatar" id="user-avatar">👤</div>
-                <div class="user-details">
-                    <h3 id="user-name">Загрузка...</h3>
-                    <span class="subscription-badge" id="user-subscription">FREE</span>
-                </div>
-            </div>
-        </header>
+<!-- Контейнер для уведомлений -->
+<div class="notifications"></div>
 
-        <main class="app-main">
-            <!-- Карточка статистики -->
-            <div class="card stats-card">
-                <div class="card-header">
-                    <h4>📚 Ваша библиотека</h4>
-                </div>
-                <div class="card__body">
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <div class="stat-label">Загружено книг</div>
-                            <div class="stat-value">
-                                <span id="books-count">0</span> из <span id="books-limit">5</span>
-                            </div>
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="books-progress"></div>
-                            </div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">Максимальный размер файла</div>
-                            <div class="stat-value" id="file-size-limit">100 МБ</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Область загрузки -->
-            <div class="card upload-card">
-                <div class="card__body">
-                    <div class="upload-area" id="upload-area">
-                        <div class="upload-icon">📄</div>
-                        <h4>Загрузить книгу</h4>
-                        <p>Перетащите файл сюда или нажмите для выбора</p>
-                        <div class="file-info">
-                            <small>Поддерживаемые форматы: PDF, DOCX, TXT</small>
-                        </div>
-                        <input type="file" id="file-input" accept=".pdf,.docx,.txt" hidden>
-                        <button class="btn btn--primary upload-btn" id="upload-btn">
-                            Выбрать файл
-                        </button>
-                    </div>
-
-                    <!-- Прогресс загрузки -->
-                    <div class="upload-progress hidden" id="upload-progress">
-                        <div class="progress-info">
-                            <span id="upload-file-name">Загрузка...</span>
-                            <span id="upload-percentage">0%</span>
-                        </div>
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="upload-progress-fill"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Список загруженных книг -->
-            <div class="card books-card">
-                <div class="card-header">
-                    <h4>📖 Ваши книги</h4>
-                </div>
-                <div class="card__body">
-                    <div id="books-list" class="books-list">
-                        <div class="empty-state">
-                            <div class="empty-icon">📚</div>
-                            <p>У вас пока нет загруженных книг</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Карточка подписки -->
-            <div class="card subscription-card">
-                <div class="card__body">
-                    <h4>💎 Увеличьте лимиты</h4>
-                    <p>Получите больше места для ваших книг с премиум подпиской</p>
-                    <div class="subscription-tiers">
-                        <div class="tier">
-                            <strong>Premium:</strong> 25 книг, до 500 МБ
-                        </div>
-                        <div class="tier">
-                            <strong>Business:</strong> 100 книг, до 1 ГБ
-                        </div>
-                    </div>
-                    <button class="btn btn--outline subscription-btn">
-                        Узнать больше
-                    </button>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <!-- Модальное окно подтверждения -->
-    <div id="confirm-modal" class="modal hidden">
-        <div class="modal-overlay" onclick="closeModal()"></div>
-        <div class="modal-content">
-            <h4 id="confirm-title">Подтверждение</h4>
-            <p id="confirm-message">Вы уверены?</p>
-            <div class="modal-actions">
-                <button class="btn btn--outline" onclick="closeModal()">Отмена</button>
-                <button class="btn btn--primary" id="confirm-action">Подтвердить</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Уведомления -->
-    <div id="notifications" class="notifications"></div>
-
-    <script src="app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

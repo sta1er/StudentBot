@@ -9,7 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
-
+import javax.annotation.PostConstruct;
 import java.io.*;
 import java.util.List;
 import java.util.Optional;
@@ -28,6 +28,27 @@ public class BookService {
     public BookService(BookMetadataRepository bookMetadataRepository, MinioClient minioClient) {
         this.bookMetadataRepository = bookMetadataRepository;
         this.minioClient = minioClient;
+    }
+
+    @PostConstruct
+    public void initBuckets() {
+        try {
+            // Проверяем существование bucket и создаем если нужно
+            boolean bucketExists = minioClient.bucketExists(
+                    BucketExistsArgs.builder().bucket(booksBucket).build()
+            );
+
+            if (!bucketExists) {
+                minioClient.makeBucket(
+                        MakeBucketArgs.builder().bucket(booksBucket).build()
+                );
+                logger.info("Создан bucket: {}", booksBucket);
+            } else {
+                logger.info("Bucket {} уже существует", booksBucket);
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка инициализации bucket: {}", e.getMessage(), e);
+        }
     }
 
     /**
@@ -67,7 +88,6 @@ public class BookService {
 
             BookMetadata savedBook = bookMetadataRepository.save(book);
             logger.info("Документ {} успешно загружен пользователем {}", fileName, userId);
-
             return savedBook;
 
         } catch (Exception e) {
@@ -129,7 +149,6 @@ public class BookService {
         Optional<BookMetadata> bookOpt = bookMetadataRepository.findById(bookId);
         if (bookOpt.isPresent()) {
             BookMetadata book = bookOpt.get();
-
             try {
                 // Удаляем файл из MinIO
                 minioClient.removeObject(
@@ -141,7 +160,6 @@ public class BookService {
 
                 // Удаляем запись из базы данных
                 bookMetadataRepository.delete(book);
-
                 logger.info("Книга {} успешно удалена", book.getTitle());
 
             } catch (Exception e) {
@@ -167,7 +185,6 @@ public class BookService {
      */
     public BookStats getUserBookStats(Long userId) {
         List<BookMetadata> books = getUserBooks(userId);
-
         long totalSize = books.stream()
                 .mapToLong(book -> book.getFileSize() != null ? book.getFileSize() : 0L)
                 .sum();
@@ -201,7 +218,6 @@ public class BookService {
     private String generateUniqueFileName(String originalFileName, Long userId) {
         String timestamp = String.valueOf(System.currentTimeMillis());
         String extension = "";
-
         int lastDotIndex = originalFileName.lastIndexOf('.');
         if (lastDotIndex > 0) {
             extension = originalFileName.substring(lastDotIndex);
