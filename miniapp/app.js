@@ -429,15 +429,19 @@ class TelegramMiniApp {
     }
 
     showAuthError(message) {
-        document.getElementById('loading-screen').style.display = 'none';
-        document.getElementById('main-screen').style.display = 'none';
+        console.log('❌ Showing auth error:', message);
+        const loadingScreen = document.getElementById('loading-screen');
+        const authErrorScreen = document.getElementById('auth-error-screen');
+        const mainScreen = document.getElementById('main-screen');
 
-        const errorScreen = document.getElementById('auth-error-screen');
-        errorScreen.style.display = 'flex';
-
-        const errorMessage = errorScreen.querySelector('.error-message');
-        if (errorMessage) {
-            errorMessage.textContent = message;
+        if (loadingScreen) loadingScreen.classList.remove('active');
+        if (mainScreen) mainScreen.classList.remove('active');
+        if (authErrorScreen) {
+            authErrorScreen.classList.add('active');
+            const errorMessage = authErrorScreen.querySelector('.error-message');
+            if (errorMessage) {
+                errorMessage.textContent = message;
+            }
         }
     }
 
