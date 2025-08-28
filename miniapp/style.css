@@ -81,9 +81,9 @@
 
   /* Typography */
   --font-family-base: "FKGroteskNeue", "Geist", "Inter", -apple-system,
-    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-family-mono: "Berkeley Mono", ui-monospace, SFMono-Regular, Menlo,
-    Monaco, Consolas, monospace;
+  Monaco, Consolas, monospace;
   --font-size-xs: 11px;
   --font-size-sm: 12px;
   --font-size-base: 14px;
@@ -126,11 +126,11 @@
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.02);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.04),
-    0 2px 4px -1px rgba(0, 0, 0, 0.02);
+  0 2px 4px -1px rgba(0, 0, 0, 0.02);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.04),
-    0 4px 6px -2px rgba(0, 0, 0, 0.02);
+  0 4px 6px -2px rgba(0, 0, 0, 0.02);
   --shadow-inset-sm: inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.03);
+  inset 0 -1px 0 rgba(0, 0, 0, 0.03);
 
   /* Animation */
   --duration-fast: 150ms;
@@ -162,7 +162,7 @@
     --color-bg-6: rgba(194, 65, 12, 0.15); /* Dark orange */
     --color-bg-7: rgba(190, 24, 93, 0.15); /* Dark pink */
     --color-bg-8: rgba(8, 145, 178, 0.15); /* Dark cyan */
-    
+
     /* Semantic Color Tokens (Dark Mode) */
     --color-background: var(--color-charcoal-700);
     --color-surface: var(--color-charcoal-800);
@@ -184,7 +184,7 @@
     --color-card-border: rgba(var(--color-gray-400-rgb), 0.2);
     --color-card-border-inner: rgba(var(--color-gray-400-rgb), 0.15);
     --shadow-inset-sm: inset 0 1px 0 rgba(255, 255, 255, 0.1),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15);
     --button-border-secondary: rgba(var(--color-gray-400-rgb), 0.2);
     --color-border-secondary: rgba(var(--color-gray-400-rgb), 0.2);
     --color-select-caret: rgba(var(--color-gray-200-rgb), 0.8);
@@ -222,7 +222,7 @@
   --color-bg-6: rgba(194, 65, 12, 0.15); /* Dark orange */
   --color-bg-7: rgba(190, 24, 93, 0.15); /* Dark pink */
   --color-bg-8: rgba(8, 145, 178, 0.15); /* Dark cyan */
-  
+
   /* Semantic Color Tokens (Dark Mode) */
   --color-background: var(--color-charcoal-700);
   --color-surface: var(--color-charcoal-800);
@@ -244,7 +244,7 @@
   --color-card-border: rgba(var(--color-gray-400-rgb), 0.15);
   --color-card-border-inner: rgba(var(--color-gray-400-rgb), 0.15);
   --shadow-inset-sm: inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+  inset 0 -1px 0 rgba(0, 0, 0, 0.15);
   --color-border-secondary: rgba(var(--color-gray-400-rgb), 0.2);
   --color-select-caret: rgba(var(--color-gray-200-rgb), 0.8);
 
@@ -268,7 +268,7 @@
   --color-brown-600-rgb: 94, 82, 64;
   --color-teal-500-rgb: 33, 128, 141;
   --color-slate-900-rgb: 19, 52, 59;
-  
+
   /* Semantic Color Tokens (Light Mode) */
   --color-background: var(--color-cream-50);
   --color-surface: var(--color-cream-100);
@@ -481,7 +481,7 @@ pre code {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-base);
   transition: border-color var(--duration-fast) var(--ease-standard),
-    box-shadow var(--duration-fast) var(--ease-standard);
+  box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 textarea.form-control {
@@ -569,42 +569,42 @@ select.form-control {
 
 .status--success {
   background-color: rgba(
-    var(--color-success-rgb, 33, 128, 141),
-    var(--status-bg-opacity)
+          var(--color-success-rgb, 33, 128, 141),
+          var(--status-bg-opacity)
   );
   color: var(--color-success);
   border: 1px solid
-    rgba(var(--color-success-rgb, 33, 128, 141), var(--status-border-opacity));
+  rgba(var(--color-success-rgb, 33, 128, 141), var(--status-border-opacity));
 }
 
 .status--error {
   background-color: rgba(
-    var(--color-error-rgb, 192, 21, 47),
-    var(--status-bg-opacity)
+          var(--color-error-rgb, 192, 21, 47),
+          var(--status-bg-opacity)
   );
   color: var(--color-error);
   border: 1px solid
-    rgba(var(--color-error-rgb, 192, 21, 47), var(--status-border-opacity));
+  rgba(var(--color-error-rgb, 192, 21, 47), var(--status-border-opacity));
 }
 
 .status--warning {
   background-color: rgba(
-    var(--color-warning-rgb, 168, 75, 47),
-    var(--status-bg-opacity)
+          var(--color-warning-rgb, 168, 75, 47),
+          var(--status-bg-opacity)
   );
   color: var(--color-warning);
   border: 1px solid
-    rgba(var(--color-warning-rgb, 168, 75, 47), var(--status-border-opacity));
+  rgba(var(--color-warning-rgb, 168, 75, 47), var(--status-border-opacity));
 }
 
 .status--info {
   background-color: rgba(
-    var(--color-info-rgb, 98, 108, 113),
-    var(--status-bg-opacity)
+          var(--color-info-rgb, 98, 108, 113),
+          var(--status-bg-opacity)
   );
   color: var(--color-info);
   border: 1px solid
-    rgba(var(--color-info-rgb, 98, 108, 113), var(--status-border-opacity));
+  rgba(var(--color-info-rgb, 98, 108, 113), var(--status-border-opacity));
 }
 
 /* Container layout */
@@ -734,69 +734,23 @@ select.form-control {
 @font-face {
   font-family: 'FKGroteskNeue';
   src: url('https://r2cdn.perplexity.ai/fonts/FKGroteskNeue.woff2')
-    format('woff2');
+  format('woff2');
 }
 
 /* END PERPLEXITY DESIGN SYSTEM */
-/* Telegram Mini App Styles */
+/* Добавь эти стили в самый конец style.css, заменив существующие стили экранов */
 
-/* Адаптация к темам Telegram */
-:root {
-  --tg-bg-color: var(--color-background);
-  --tg-text-color: var(--color-text);
-  --tg-hint-color: var(--color-text-secondary);
-  --tg-button-color: var(--color-primary);
-  --tg-button-text-color: var(--color-btn-primary-text);
-  --tg-secondary-bg-color: var(--color-surface);
-}
-
-/* Переопределяем для Telegram тем */
-.tg-theme-light {
-  --tg-bg-color: #ffffff;
-  --tg-text-color: #000000;
-  --tg-hint-color: #707579;
-  --tg-button-color: #2481cc;
-  --tg-button-text-color: #ffffff;
-  --tg-secondary-bg-color: #f7f7f7;
-}
-
-.tg-theme-dark {
-  --tg-bg-color: #17212b;
-  --tg-text-color: #ffffff;
-  --tg-hint-color: #708499;
-  --tg-button-color: #5288c1;
-  --tg-button-text-color: #ffffff;
-  --tg-secondary-bg-color: #232e3c;
-}
-
-/* Базовые стили */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: var(--font-family-base);
-  background: var(--tg-bg-color);
-  color: var(--tg-text-color);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
-  padding: 0;
-  margin: 0;
-}
+/* ИСПРАВЛЕННЫЕ СТИЛИ ДЛЯ МИНИ-ПРИЛОЖЕНИЯ */
 
 /* Экраны */
 .screen {
   display: none;
   min-height: 100vh;
-  padding: var(--space-16);
+  width: 100%;
 }
 
 .screen.active {
-  display: flex;
-  flex-direction: column;
+  display: block;
 }
 
 /* Экран загрузки */
@@ -807,16 +761,30 @@ body {
   justify-content: center;
   min-height: 100vh;
   text-align: center;
+  padding: var(--space-32);
 }
 
+.loading-container h3 {
+  margin: var(--space-16) 0 var(--space-8) 0;
+  font-size: var(--font-size-xl);
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.loading-container p {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  margin: 0;
+}
+
+/* Spinner */
 .spinner {
   width: 48px;
   height: 48px;
   border: 4px solid var(--color-secondary);
-  border-top: 4px solid var(--tg-button-color);
-  border-radius: 50%;
+  border-top: 4px solid var(--color-primary);
+  border-radius: var(--radius-full);
   animation: spin 1s linear infinite;
-  margin-bottom: var(--space-24);
 }
 
 @keyframes spin {
@@ -832,11 +800,52 @@ body {
   justify-content: center;
   min-height: 100vh;
   text-align: center;
+  padding: var(--space-32);
+  max-width: 500px;
+  margin: 0 auto;
 }
 
 .error-icon {
-  font-size: 64px;
+  font-size: 72px;
   margin-bottom: var(--space-24);
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
+}
+
+.error-container h2 {
+  font-size: var(--font-size-3xl);
+  margin-bottom: var(--space-16);
+  color: var(--color-text);
+  font-weight: var(--font-weight-bold);
+}
+
+.error-message {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-24);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-normal);
+}
+
+.error-container ol {
+  text-align: left;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  background: var(--color-bg-1);
+  padding: var(--space-20);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-card-border);
+}
+
+.error-container li {
+  margin-bottom: var(--space-8);
+  color: var(--color-text);
+}
+
+/* Основной экран */
+#main-screen {
+  padding: var(--space-16);
+  max-width: 600px;
+  margin: 0 auto;
+  min-height: 100vh;
 }
 
 /* Заголовок приложения */
@@ -844,8 +853,9 @@ body {
   background: linear-gradient(135deg, var(--color-bg-1), var(--color-bg-3));
   border-radius: var(--radius-lg);
   padding: var(--space-20);
-  margin-bottom: var(--space-24);
+  margin-bottom: var(--space-20);
   border: 1px solid var(--color-card-border);
+  box-shadow: var(--shadow-sm);
 }
 
 .user-info {
@@ -857,19 +867,22 @@ body {
 .avatar {
   width: 56px;
   height: 56px;
-  border-radius: 50%;
-  background: var(--tg-button-color);
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-teal-600));
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
-  color: var(--tg-button-text-color);
-  font-weight: bold;
+  font-size: var(--font-size-2xl);
+  color: var(--color-btn-primary-text);
+  font-weight: var(--font-weight-bold);
+  box-shadow: var(--shadow-md);
 }
 
 .user-details h3 {
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-6);
   font-size: var(--font-size-xl);
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
 }
 
 .subscription-badge {
@@ -879,35 +892,23 @@ body {
   border-radius: var(--radius-full);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  border: 1px solid rgba(var(--color-teal-500-rgb), 0.2);
-}
-
-.subscription-badge.premium {
-  background: var(--color-bg-2);
-  color: var(--color-orange-500);
-  border-color: rgba(var(--color-orange-500-rgb), 0.2);
-}
-
-.subscription-badge.business {
-  background: var(--color-bg-7);
-  color: var(--color-red-500);
-  border-color: rgba(var(--color-red-500-rgb), 0.2);
+  border: 1px solid rgba(var(--color-teal-500-rgb), 0.3);
 }
 
 /* Основной контент */
 .app-main {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--space-16);
+  gap: var(--space-20);
 }
 
 /* Карточки */
 .card {
-  background: var(--tg-secondary-bg-color);
+  background: var(--color-surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-card-border);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
   transition: all var(--duration-normal) var(--ease-standard);
 }
 
@@ -917,41 +918,51 @@ body {
 }
 
 .card-header {
-  padding: var(--space-16) var(--space-20);
-  border-bottom: 1px solid var(--color-card-border-inner);
+  padding: var(--space-16);
   background: var(--color-bg-1);
+  border-bottom: 1px solid var(--color-card-border-inner);
 }
 
 .card-header h4 {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin: 0;
 }
 
 /* Статистика */
 .stats-grid {
   display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: var(--space-16);
+  padding: var(--space-16);
 }
 
 .stat-item {
   text-align: center;
+  padding: var(--space-12);
+  background: var(--color-bg-2);
+  border-radius: var(--radius-base);
+  border: 1px solid var(--color-card-border-inner);
 }
 
 .stat-label {
   font-size: var(--font-size-sm);
-  color: var(--tg-hint-color);
+  color: var(--color-text-secondary);
   margin-bottom: var(--space-8);
+  font-weight: var(--font-weight-medium);
 }
 
 .stat-value {
-  font-size: var(--font-size-2xl);
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-bold);
   margin-bottom: var(--space-12);
+  color: var(--color-text);
 }
 
 .progress-bar {
   width: 100%;
-  height: 8px;
+  height: 6px;
   background: var(--color-secondary);
   border-radius: var(--radius-full);
   overflow: hidden;
@@ -959,29 +970,25 @@ body {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--tg-button-color), var(--color-teal-300));
+  background: linear-gradient(90deg, var(--color-primary), var(--color-teal-400));
   border-radius: var(--radius-full);
   transition: width var(--duration-normal) var(--ease-standard);
-  width: 0%;
 }
 
 /* Область загрузки */
 .upload-area {
   text-align: center;
   padding: var(--space-32);
+  margin: var(--space-16);
   border: 2px dashed var(--color-border);
   border-radius: var(--radius-lg);
   transition: all var(--duration-normal) var(--ease-standard);
   cursor: pointer;
-}
-
-.upload-area:hover {
-  border-color: var(--tg-button-color);
   background: var(--color-bg-1);
 }
 
-.upload-area.dragover {
-  border-color: var(--tg-button-color);
+.upload-area:hover, .upload-area.dragover {
+  border-color: var(--color-primary);
   background: var(--color-bg-3);
   transform: scale(1.02);
 }
@@ -989,25 +996,32 @@ body {
 .upload-icon {
   font-size: 48px;
   margin-bottom: var(--space-16);
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+  color: var(--color-text-secondary);
 }
 
 .upload-area h4 {
   margin-bottom: var(--space-8);
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
 }
 
 .upload-area p {
-  color: var(--tg-hint-color);
-  margin-bottom: var(--space-16);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-20);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
 }
 
 .file-info {
-  margin-bottom: var(--space-20);
+  margin-top: var(--space-16);
 }
 
 .file-info small {
-  color: var(--tg-hint-color);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
+  line-height: 1.4;
 }
 
 /* Кнопки */
@@ -1027,39 +1041,26 @@ body {
   overflow: hidden;
 }
 
-.btn:before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  transition: left var(--duration-normal);
-}
-
-.btn:hover:before {
-  left: 100%;
-}
-
 .btn--primary {
-  background: linear-gradient(135deg, var(--tg-button-color), var(--color-teal-600));
-  color: var(--tg-button-text-color);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-teal-600));
+  color: var(--color-btn-primary-text);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn--primary:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-lg);
+  background: linear-gradient(135deg, var(--color-primary-hover), var(--color-teal-700));
 }
 
 .btn--outline {
   background: transparent;
   border: 2px solid var(--color-border);
-  color: var(--tg-text-color);
+  color: var(--color-text);
 }
 
 .btn--outline:hover {
-  border-color: var(--tg-button-color);
+  border-color: var(--color-primary);
   background: var(--color-bg-1);
 }
 
@@ -1067,39 +1068,24 @@ body {
   padding: var(--space-16) var(--space-32);
   font-size: var(--font-size-lg);
   border-radius: var(--radius-md);
-}
-
-/* Прогресс загрузки */
-.upload-progress {
-  padding: var(--space-20);
-  background: var(--color-bg-1);
-  border-radius: var(--radius-base);
-  margin-top: var(--space-16);
-}
-
-.progress-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--space-12);
+  font-weight: var(--font-weight-semibold);
 }
 
 /* Список книг */
 .books-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-12);
+  padding: var(--space-16);
 }
 
 .book-item {
   display: flex;
   align-items: center;
-  justify-content: between;
+  justify-content: space-between;
   padding: var(--space-16);
   background: var(--color-bg-2);
   border-radius: var(--radius-base);
   border: 1px solid var(--color-card-border);
   transition: all var(--duration-fast) var(--ease-standard);
+  margin-bottom: var(--space-12);
 }
 
 .book-item:hover {
@@ -1109,17 +1095,18 @@ body {
 
 .book-info {
   flex: 1;
-  margin-right: var(--space-16);
 }
 
 .book-title {
   font-weight: var(--font-weight-semibold);
   margin-bottom: var(--space-4);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
 }
 
 .book-meta {
   font-size: var(--font-size-sm);
-  color: var(--tg-hint-color);
+  color: var(--color-text-secondary);
 }
 
 .book-actions {
@@ -1132,7 +1119,7 @@ body {
   border-radius: var(--radius-sm);
   border: none;
   background: var(--color-secondary);
-  color: var(--tg-text-color);
+  color: var(--color-text);
   cursor: pointer;
   transition: all var(--duration-fast) var(--ease-standard);
   font-size: var(--font-size-lg);
@@ -1155,13 +1142,15 @@ body {
 .empty-state {
   text-align: center;
   padding: var(--space-32);
-  color: var(--tg-hint-color);
+  color: var(--color-text-secondary);
 }
 
 .empty-icon {
   font-size: 48px;
   margin-bottom: var(--space-16);
-  opacity: 0.5;
+  opacity: 0.6;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+  color: var(--color-text-secondary);
 }
 
 /* Карточка подписки */
@@ -1170,154 +1159,138 @@ body {
   border: 1px solid rgba(var(--color-orange-500-rgb), 0.2);
 }
 
+.subscription-card .card-header {
+  background: linear-gradient(135deg, var(--color-bg-6), var(--color-bg-7));
+}
+
+.subscription-card .card-header h4 {
+  color: var(--color-warning);
+}
+
 .subscription-tiers {
-  margin: var(--space-16) 0;
+  padding: var(--space-16);
 }
 
 .tier {
-  padding: var(--space-8) 0;
+  padding: var(--space-12);
+  margin-bottom: var(--space-8);
+  background: var(--color-bg-1);
+  border-radius: var(--radius-base);
   font-size: var(--font-size-sm);
+  color: var(--color-text);
 }
 
 .subscription-btn {
-  margin-top: var(--space-16);
-}
-
-/* Модальные окна */
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal.hidden {
-  display: none;
-}
-
-.modal-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-}
-
-.modal-content {
-  position: relative;
-  background: var(--tg-secondary-bg-color);
-  border-radius: var(--radius-lg);
-  padding: var(--space-24);
   margin: var(--space-16);
-  max-width: 400px;
-  width: 100%;
-  border: 1px solid var(--color-card-border);
+  width: calc(100% - var(--space-32));
 }
 
-.modal-actions {
-  display: flex;
-  gap: var(--space-12);
-  margin-top: var(--space-20);
-  justify-content: flex-end;
-}
-
-/* Уведомления */
-.notifications {
-  position: fixed;
-  top: var(--space-16);
-  right: var(--space-16);
-  z-index: 1100;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-}
-
-.notification {
-  padding: var(--space-16);
+/* Прогресс загрузки */
+.upload-progress {
+  padding: var(--space-20);
+  background: var(--color-bg-1);
   border-radius: var(--radius-base);
-  background: var(--tg-secondary-bg-color);
+  margin: var(--space-16);
   border: 1px solid var(--color-card-border);
-  max-width: 300px;
-  animation: slideIn 0.3s ease-out;
-  box-shadow: var(--shadow-lg);
 }
 
-.notification.success {
-  border-left: 4px solid var(--color-success);
-  background: var(--color-bg-3);
-}
-
-.notification.error {
-  border-left: 4px solid var(--color-error);
-  background: var(--color-bg-4);
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-/* Утилитарные классы */
-.hidden {
-  display: none !important;
-}
-
-.text-center {
-  text-align: center;
-}
-
-.mb-16 {
-  margin-bottom: var(--space-16);
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-12);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
 }
 
 /* Адаптивность */
 @media (max-width: 480px) {
-  .screen {
+  #main-screen {
     padding: var(--space-12);
   }
-  
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-12);
+  }
+
   .app-header {
     padding: var(--space-16);
   }
-  
+
   .upload-area {
     padding: var(--space-24);
+    margin: var(--space-12);
   }
-  
-  .modal-content {
-    margin: var(--space-8);
-  }
-  
-  .notifications {
-    left: var(--space-8);
-    right: var(--space-8);
-  }
-  
-  .notification {
-    max-width: none;
-  }
-}
 
-@media (min-width: 768px) {
-  .stats-grid {
-    grid-template-columns: 1fr 1fr;
+  .upload-area h4 {
+    font-size: var(--font-size-base);
   }
-  
-  .app-main {
-    max-width: 600px;
-    margin: 0 auto;
+
+  .upload-icon {
+    font-size: 36px;
+    margin-bottom: var(--space-12);
+  }
+
+  .error-container {
+    padding: var(--space-24);
+  }
+
+  .error-container h2 {
+    font-size: var(--font-size-2xl);
+  }
+
+  .error-icon {
+    font-size: 56px;
+    margin-bottom: var(--space-16);
+  }
+
+  .user-info {
+    gap: var(--space-12);
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .avatar {
+    width: 48px;
+    height: 48px;
+    font-size: var(--font-size-lg);
+  }
+
+  .book-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-12);
+  }
+
+  .book-actions {
+    justify-content: center;
+  }
+
+  .loading-container {
+    padding: var(--space-24);
+  }
+
+  .loading-container h3 {
+    font-size: var(--font-size-lg);
+  }
+
+  .btn {
+    padding: var(--space-10) var(--space-20);
+    font-size: var(--font-size-sm);
+  }
+
+  .upload-btn {
+    padding: var(--space-12) var(--space-24);
+    font-size: var(--font-size-base);
+  }
+
+  .empty-state {
+    padding: var(--space-24);
+  }
+
+  .empty-icon {
+    font-size: 36px;
+    margin-bottom: var(--space-12);
   }
 }

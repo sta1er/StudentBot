@@ -47,22 +47,151 @@ class TelegramMiniApp {
     }
 
     showTelegramRequiredError() {
+        console.log('📱 Showing Telegram required error');
         document.body.innerHTML = `
-            <div class="error-container">
-                <div class="error-icon">🚫</div>
-                <h2>Доступ ограничен</h2>
-                <p>Это приложение доступно только через Telegram.</p>
-                <p>Пожалуйста, откройте его через официальное приложение Telegram.</p>
-                <div class="mt-24">
-                    <h3>Как открыть:</h3>
-                    <ol style="text-align: left; max-width: 300px; margin: 0 auto;">
-                        <li>Откройте Telegram</li>
-                        <li>Найдите бота StudentBot</li>
-                        <li>Нажмите кнопку "Открыть приложение"</li>
-                    </ol>
-                </div>
+        <div class="error-container">
+            <div class="error-icon">🚫</div>
+            <h2>Доступ ограничен</h2>
+            <p class="error-message">
+                Это приложение доступно только через Telegram.<br>
+                Пожалуйста, откройте его через официальное приложение Telegram.
+            </p>
+            <div style="margin-top: 32px; margin-bottom: 24px;">
+                <h3 style="font-size: 18px; margin-bottom: 16px; color: var(--tg-text-color);">Как открыть:</h3>
+                <ol style="text-align: left; max-width: 320px; margin: 0 auto; padding-left: 20px;">
+                    <li>Откройте приложение Telegram</li>
+                    <li>Найдите бота <strong>@student_test_998_bot</strong></li>
+                    <li>Нажмите команду <strong>/start</strong></li>
+                    <li>Выберите кнопку <strong>"📱 Открыть приложение"</strong></li>
+                </ol>
             </div>
-        `;
+            <div style="margin-top: 32px; padding: 16px; background: var(--color-bg-4); border-radius: 12px; border: 1px solid rgba(255, 84, 89, 0.2);">
+                <p style="margin: 0; font-size: 14px; color: var(--color-error);">
+                    ⚠️ <strong>Внимание:</strong> Прямой доступ через браузер заблокирован в целях безопасности
+                </p>
+            </div>
+        </div>
+        
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: #2d3748;
+                margin: 0;
+                padding: 0;
+                min-height: 100vh;
+            }
+            
+            .error-container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                text-align: center;
+                padding: 32px 16px;
+                max-width: 500px;
+                margin: 0 auto;
+            }
+            
+            .error-icon {
+                font-size: 72px;
+                margin-bottom: 24px;
+                filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+                animation: pulse 2s infinite;
+            }
+            
+            @keyframes pulse {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.05); }
+            }
+            
+            .error-container h2 {
+                font-size: 28px;
+                margin-bottom: 16px;
+                color: #2d3748;
+                font-weight: 700;
+                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            
+            .error-message {
+                color: #4a5568;
+                margin-bottom: 24px;
+                font-size: 16px;
+                line-height: 1.6;
+                background: rgba(255, 255, 255, 0.9);
+                padding: 16px;
+                border-radius: 12px;
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                backdrop-filter: blur(10px);
+            }
+            
+            .error-container h3 {
+                font-size: 18px;
+                margin-bottom: 16px;
+                color: #2d3748;
+                font-weight: 600;
+            }
+            
+            .error-container ol {
+                text-align: left;
+                font-size: 15px;
+                line-height: 1.8;
+                background: rgba(255, 255, 255, 0.95);
+                padding: 20px 20px 20px 40px;
+                border-radius: 12px;
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                backdrop-filter: blur(10px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            }
+            
+            .error-container li {
+                margin-bottom: 8px;
+                color: #2d3748;
+            }
+            
+            .error-container strong {
+                color: #667eea;
+                font-weight: 600;
+            }
+            
+            /* Анимация появления */
+            .error-container {
+                animation: fadeInUp 0.8s ease-out;
+            }
+            
+            @keyframes fadeInUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            
+            /* Мобильная адаптация */
+            @media (max-width: 480px) {
+                .error-container {
+                    padding: 24px 12px;
+                }
+                
+                .error-icon {
+                    font-size: 64px;
+                }
+                
+                .error-container h2 {
+                    font-size: 24px;
+                }
+                
+                .error-container ol {
+                    max-width: none;
+                    padding: 16px 16px 16px 32px;
+                }
+            }
+        </style>
+    `;
     }
 
     adaptTheme() {
