@@ -4,11 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StudentBot - Ваш помощник для изучения</title>
-    <link rel="stylesheet" href="style.css?v=0.0.7">
+    <link rel="stylesheet" href="style.css?v=0.0.8">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-<!-- Экран загрузки -->
 <div id="loading-screen" class="screen active">
     <div class="loading-container">
         <div class="spinner"></div>
@@ -17,7 +16,6 @@
     </div>
 </div>
 
-<!-- Экран ошибки аутентификации -->
 <div id="auth-error-screen" class="screen">
     <div class="error-container">
         <div class="error-icon">⚠️</div>
@@ -29,9 +27,7 @@
     </div>
 </div>
 
-<!-- Основной экран приложения -->
 <div id="main-screen" class="screen">
-    <!-- Заголовок приложения -->
     <header class="app-header">
         <div class="user-info">
             <div class="avatar" id="user-avatar">
@@ -42,11 +38,15 @@
                 <span class="subscription-badge" id="user-subscription">FREE</span>
             </div>
         </div>
+        <div class="header-actions">
+            <button class="btn-icon" id="theme-toggle" title="Сменить тему">
+                <span class="theme-icon-sun">☀️</span>
+                <span class="theme-icon-moon">🌙</span>
+            </button>
+        </div>
     </header>
 
-    <!-- Основной контент -->
     <main class="app-main">
-        <!-- Статистика библиотеки -->
         <section class="card">
             <div class="card-header">
                 <h4>📚 Ваша библиотека</h4>
@@ -62,13 +62,12 @@
                     </div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">Максимальный размер файла</div>
+                    <div class="stat-label">Макс. размер файла</div>
                     <div class="stat-value" id="file-size-limit">100 МБ</div>
                 </div>
             </div>
         </section>
 
-        <!-- Загрузка файлов -->
         <section class="card">
             <div class="card-header">
                 <h4>📤 Загрузить книгу</h4>
@@ -81,13 +80,9 @@
                     Выбрать файл
                 </button>
                 <input type="file" id="file-input" accept=".pdf,.docx,.txt" style="display: none;">
-                <div class="file-info">
-                    <small>Максимальный размер файла зависит от вашего тарифного плана</small>
-                </div>
             </div>
         </section>
 
-        <!-- Список книг -->
         <section class="card">
             <div class="card-header">
                 <h4>📖 Ваши книги</h4>
@@ -100,47 +95,32 @@
             </div>
         </section>
 
-        <!-- Карточка подписки -->
         <section class="card subscription-card">
             <div class="card-header">
-                <h4>💎 Увеличьте лимиты</h4>
+                <h4>💎 Расширьте возможности</h4>
             </div>
-            <p>Получите больше места для ваших книг с премиум подпиской</p>
-            <div class="subscription-tiers">
-                <div class="tier">
-                    <strong>Premium:</strong> 25 книг, до 500 МБ
-                </div>
-                <div class="tier">
-                    <strong>Business:</strong> 100 книг, до 1 ГБ
-                </div>
-            </div>
-            <button class="btn btn--outline subscription-btn">
-                Узнать больше
+            <p>Получите больше места для ваших книг с премиум-подпиской</p>
+            <button class="btn btn--primary subscription-btn">
+                Улучшить тариф
             </button>
         </section>
     </main>
 </div>
 
-<!-- Модальное окно подтверждения -->
-<div id="confirm-modal" class="modal hidden">
+<div id="app-modal" class="modal-wrapper hidden">
     <div class="modal-overlay"></div>
-    <div class="modal-content">
-        <h3 id="modal-title">Подтверждение</h3>
-        <p id="modal-message">Вы уверены?</p>
+    <div class="modal-content card">
+        <h3 id="modal-title">Заголовок</h3>
+        <p id="modal-message">Сообщение...</p>
         <div class="modal-actions">
-            <button class="btn btn--outline" onclick="this.closest('.modal').classList.add('hidden')">
-                Отмена
-            </button>
-            <button class="btn btn--primary" id="modal-confirm">
-                Подтвердить
-            </button>
+            <button class="btn btn--outline" id="modal-cancel">Отмена</button>
+            <button class="btn btn--primary" id="modal-confirm">ОК</button>
         </div>
     </div>
 </div>
 
-<!-- Контейнер для уведомлений -->
 <div class="notifications"></div>
 
-<script src="app.js?v=0.0.2"></script>
+<script src="app.js?v=0.0.8"></script>
 </body>
 </html>
