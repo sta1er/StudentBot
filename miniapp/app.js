@@ -5,6 +5,8 @@ class TelegramMiniApp {
         this.apiBaseUrl = 'https://luvtok.ru/api/miniapp';
         this.supportedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
         this.currentTheme = localStorage.getItem('app-theme') || 'light';
+        this.finishBtn = document.getElementById('finish-btn');
+        this.uploadBtn = document.getElementById('upload-btn'); // Добавил ссылку на кнопку загрузки
 
         this.init();
     }
@@ -41,14 +43,21 @@ class TelegramMiniApp {
     setupEventListeners() {
         const uploadArea = document.getElementById('upload-area');
         const fileInput = document.getElementById('file-input');
-        const uploadBtn = document.getElementById('upload-btn');
-        if (uploadBtn) uploadBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fileInput.click(); });
+
+        // Обработчик для кнопки "Выбрать файл"
+        if (this.uploadBtn) this.uploadBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fileInput.click(); });
+
         if (fileInput) fileInput.addEventListener('change', (e) => { if (e.target.files?.[0]) this.handleFileSelect(e.target.files[0]); });
         if (uploadArea) {
             uploadArea.addEventListener('dragover', (e) => this.handleDragOver(e));
             uploadArea.addEventListener('dragleave', (e) => this.handleDragLeave(e));
             uploadArea.addEventListener('drop', (e) => this.handleDrop(e));
-            uploadArea.addEventListener('click', (e) => { if (e.target !== uploadBtn && !uploadBtn?.contains(e.target)) fileInput.click(); });
+            // Клик по области загрузки (если не попали на кнопку)
+            uploadArea.addEventListener('click', (e) => {
+                if (e.target !== this.uploadBtn && !this.uploadBtn?.contains(e.target) && e.target !== this.finishBtn && !this.finishBtn?.contains(e.target)) {
+                    fileInput.click();
+                }
+            });
         }
 
         document.querySelector('.subscription-btn')?.addEventListener('click', () => {
@@ -62,8 +71,8 @@ class TelegramMiniApp {
 
         document.getElementById('theme-toggle')?.addEventListener('click', () => this.toggleTheme());
 
-        // Новая логика для кнопки "Готово"
-        document.getElementById('finish-btn')?.addEventListener('click', () => {
+        // Логика для кнопки "Готово"
+        if (this.finishBtn) this.finishBtn.addEventListener('click', () => {
             this.tg.close();
         });
 
@@ -101,6 +110,8 @@ class TelegramMiniApp {
             };
             this.updateUI();
             this.renderBooksList(response.books || []);
+            // Скрываем кнопку "Готово" при каждой загрузке данных (если она вдруг была видна)
+            this.hideFinishButton();
         } catch (error) {
             console.error('Ошибка загрузки данных:', error);
             this.showNotification('Ошибка загрузки данных пользователя', 'error');
@@ -167,8 +178,7 @@ class TelegramMiniApp {
     }
 
     async handleFileSelect(file) {
-        // Прячем кнопку "Готово" при начале новой загрузки
-        document.getElementById('finish-btn')?.classList.add('hidden');
+        this.hideFinishButton(); // Скрываем кнопку "Готово" при выборе нового файла
         if (!this.isValidFileType(file)) { this.showNotification('Неподдерживаемый тип файла.', 'error'); return; }
         if (!this.isValidFileSize(file)) { this.showNotification(`Файл слишком большой: макс. ${this.userStats.maxFileSizeMB} МБ`, 'error'); return; }
         if (this.userStats.booksCount >= this.userStats.booksLimit) { this.showNotification('Достигнут лимит книг.', 'error'); return; }
@@ -183,14 +193,27 @@ class TelegramMiniApp {
             formData.append('telegramId', this.user.telegramId);
             const response = await this.apiRequest('/upload', { method: 'POST', body: formData });
             this.showNotification(`Файл "${response.filename}" успешно загружен!`, 'success');
-            // Показываем кнопку "Готово" после успешной загрузки
-            document.getElementById('finish-btn')?.classList.remove('hidden');
+            this.showFinishButton(); // Показываем кнопку "Готово" после успешной загрузки
             await this.loadUserData();
         } catch (error) {
             let msg = 'Ошибка при загрузке файла';
             if (error.status === 409) msg = 'Достигнут лимит книг';
             else if (error.status === 413) msg = 'Файл слишком большой';
             this.showNotification(msg, 'error');
+        }
+    }
+
+    showFinishButton() {
+        if (this.finishBtn) {
+            this.finishBtn.classList.remove('hidden');
+            this.uploadBtn.classList.add('hidden'); // Скрываем "Выбрать файл"
+        }
+    }
+
+    hideFinishButton() {
+        if (this.finishBtn) {
+            this.finishBtn.classList.add('hidden');
+            this.uploadBtn.classList.remove('hidden'); // Показываем "Выбрать файл"
         }
     }
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StudentBot - Ваш помощник для изучения</title>
-    <link rel="stylesheet" href="style.css?v=0.0.9">
+    <link rel="stylesheet" href="style.css?v=0.1.0">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -69,10 +69,12 @@
                 <div class="upload-icon">📄</div>
                 <h4>Перетащите файл сюда или нажмите для выбора</h4>
                 <p>Поддерживаемые форматы: PDF, DOCX, TXT</p>
-                <button class="btn btn--primary upload-btn" id="upload-btn">
+                <input type="file" id="file-input" accept=".pdf,.docx,.txt" style="display: none;">
+            </div>
+            <div class="upload-actions">
+                <button class="btn btn--primary" id="upload-btn">
                     Выбрать файл
                 </button>
-                <input type="file" id="file-input" accept=".pdf,.docx,.txt" style="display: none;">
                 <button class="btn btn--finish hidden" id="finish-btn">
                     Готово
                 </button>
@@ -112,6 +114,6 @@
 </div>
 
 <div class="notifications"></div>
-<script src="app.js?v=0.0.9"></script>
+<script src="app.js?v=0.1.0"></script>
 </body>
 </html>
