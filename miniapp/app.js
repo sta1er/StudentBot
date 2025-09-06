@@ -14,16 +14,12 @@ class TelegramMiniApp {
             window.location.href = 'error.html';
             return;
         }
-
         try {
             this.tg.ready();
             this.tg.expand();
-
             this.applyTheme(this.currentTheme);
             this.setupEventListeners();
-
             await this.authenticateUser();
-
         } catch (error) {
             console.error('Ошибка инициализации:', error);
             this.showAuthError('Ошибка инициализации приложения');
@@ -46,42 +42,30 @@ class TelegramMiniApp {
         const uploadArea = document.getElementById('upload-area');
         const fileInput = document.getElementById('file-input');
         const uploadBtn = document.getElementById('upload-btn');
-        const uploadMoreBtn = document.getElementById('upload-more-btn');
-        const doneBtn = document.getElementById('done-btn');
-
-        if (uploadBtn) uploadBtn.addEventListener('click', () => fileInput.click());
-        if (uploadMoreBtn) uploadMoreBtn.addEventListener('click', () => fileInput.click());
+        if (uploadBtn) uploadBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fileInput.click(); });
         if (fileInput) fileInput.addEventListener('change', (e) => { if (e.target.files?.[0]) this.handleFileSelect(e.target.files[0]); });
-
-        if (doneBtn) {
-            doneBtn.addEventListener('click', () => {
-                uploadArea.classList.remove('upload-complete');
-                // Scroll to the books list for better UX
-                document.getElementById('books-section')?.scrollIntoView({ behavior: 'smooth' });
-            });
-        }
-
         if (uploadArea) {
             uploadArea.addEventListener('dragover', (e) => this.handleDragOver(e));
             uploadArea.addEventListener('dragleave', (e) => this.handleDragLeave(e));
             uploadArea.addEventListener('drop', (e) => this.handleDrop(e));
-            uploadArea.addEventListener('click', (e) => {
-                if (e.target.id === 'initial-upload-view' || e.target.closest('#initial-upload-view')) {
-                    fileInput.click();
-                }
-            });
+            uploadArea.addEventListener('click', (e) => { if (e.target !== uploadBtn && !uploadBtn?.contains(e.target)) fileInput.click(); });
         }
 
         document.querySelector('.subscription-btn')?.addEventListener('click', () => {
             this.showModal({
                 title: '💎 Улучшение тарифа',
-                message: 'Для оформления подписки и расширения возможностей, пожалуйста, свяжитесь с нашей службой поддержки.',
+                message: 'Для оформления подписки и расширения возможностей, пожалуйста, свяжитесь с нашей службой поддержки в Telegram.',
                 confirmText: 'Понятно',
                 showCancel: false
             });
         });
 
         document.getElementById('theme-toggle')?.addEventListener('click', () => this.toggleTheme());
+
+        // Новая логика для кнопки "Готово"
+        document.getElementById('finish-btn')?.addEventListener('click', () => {
+            this.tg.close();
+        });
 
         document.getElementById('app-modal')?.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal-overlay') || e.target.id === 'modal-cancel') {
@@ -97,11 +81,9 @@ class TelegramMiniApp {
                 body: JSON.stringify({ initData: this.tg.initData }),
                 headers: { 'Content-Type': 'application/json' }
             });
-
             this.user = response;
             await this.loadUserData();
             this.showScreen('main-screen');
-
         } catch (error) {
             console.error('Ошибка аутентификации:', error);
             this.showAuthError(error.message);
@@ -146,7 +128,6 @@ class TelegramMiniApp {
             booksList.innerHTML = `<div class="empty-state"><div class="empty-icon">📚</div><p>У вас пока нет загруженных книг</p></div>`;
             return;
         }
-
         booksList.innerHTML = books.map(book => `
             <div class="book-item" data-book-id="${book.id}">
                 <div class="book-info">
@@ -158,15 +139,10 @@ class TelegramMiniApp {
                 <div class="book-actions">
                     <button class="btn-icon delete" title="Удалить">🗑️</button>
                 </div>
-            </div>
-        `).join('');
-
+            </div>`).join('');
         booksList.querySelectorAll('.delete').forEach(btn => {
             const bookId = btn.closest('.book-item').dataset.bookId;
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.confirmDeleteBook(bookId);
-            });
+            btn.addEventListener('click', () => this.confirmDeleteBook(bookId));
         });
     }
 
@@ -191,7 +167,8 @@ class TelegramMiniApp {
     }
 
     async handleFileSelect(file) {
-        document.getElementById('upload-area').classList.remove('upload-complete');
+        // Прячем кнопку "Готово" при начале новой загрузки
+        document.getElementById('finish-btn')?.classList.add('hidden');
         if (!this.isValidFileType(file)) { this.showNotification('Неподдерживаемый тип файла.', 'error'); return; }
         if (!this.isValidFileSize(file)) { this.showNotification(`Файл слишком большой: макс. ${this.userStats.maxFileSizeMB} МБ`, 'error'); return; }
         if (this.userStats.booksCount >= this.userStats.booksLimit) { this.showNotification('Достигнут лимит книг.', 'error'); return; }
@@ -206,10 +183,8 @@ class TelegramMiniApp {
             formData.append('telegramId', this.user.telegramId);
             const response = await this.apiRequest('/upload', { method: 'POST', body: formData });
             this.showNotification(`Файл "${response.filename}" успешно загружен!`, 'success');
-
-            // New: Show the "Done" and "Upload More" buttons
-            document.getElementById('upload-area').classList.add('upload-complete');
-
+            // Показываем кнопку "Готово" после успешной загрузки
+            document.getElementById('finish-btn')?.classList.remove('hidden');
             await this.loadUserData();
         } catch (error) {
             let msg = 'Ошибка при загрузке файла';
@@ -241,83 +216,30 @@ class TelegramMiniApp {
         }
     }
 
-    formatFileSize(bytes) {
-        if (bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-    }
+    formatFileSize(bytes) { if (bytes === 0) return '0 B'; const k = 1024; const sizes = ['B', 'KB', 'MB', 'GB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]; }
+    formatDate(dateString) { if (!dateString) return ''; try { const date = new Date(dateString); if (isNaN(date.getTime())) { return ''; } return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch (e) { return ''; } }
 
-    formatDate(dateString) {
-        if (!dateString) return '';
-        try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) { return ''; }
-            return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        } catch (e) {
-            return '';
-        }
-    }
-
-    showScreen(screenId) {
-        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-        document.getElementById(screenId)?.classList.add('active');
-    }
-
-    showAuthError(message) {
-        this.showScreen('auth-error-screen');
-        const errorMessage = document.querySelector('#auth-error-screen .error-message');
-        if (errorMessage) errorMessage.textContent = message;
-    }
+    showScreen(screenId) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(screenId)?.classList.add('active'); }
+    showAuthError(message) { this.showScreen('auth-error-screen'); const errorMessage = document.querySelector('#auth-error-screen .error-message'); if (errorMessage) errorMessage.textContent = message; }
 
     showModal({ title, message, confirmText = 'ОК', cancelText = 'Отмена', onConfirm, showCancel = true }) {
         const modal = document.getElementById('app-modal');
         modal.querySelector('#modal-title').textContent = title;
         modal.querySelector('#modal-message').innerHTML = message;
-
         const confirmBtn = modal.querySelector('#modal-confirm');
         confirmBtn.textContent = confirmText;
-
         const cancelBtn = modal.querySelector('#modal-cancel');
         cancelBtn.style.display = showCancel ? 'inline-flex' : 'none';
         cancelBtn.textContent = cancelText;
-
         confirmBtn.replaceWith(confirmBtn.cloneNode(true));
-        modal.querySelector('#modal-confirm').addEventListener('click', () => {
-            if (onConfirm) onConfirm();
-            this.closeModal();
-        });
-
+        modal.querySelector('#modal-confirm').addEventListener('click', () => { if (onConfirm) onConfirm(); this.closeModal(); });
         modal.classList.remove('hidden');
     }
+    closeModal() { document.getElementById('app-modal')?.classList.add('hidden'); }
 
-    closeModal() {
-        document.getElementById('app-modal')?.classList.add('hidden');
-    }
-
-    showNotification(message, type = 'info') {
-        const container = document.querySelector('.notifications') || (() => {
-            const el = document.createElement('div');
-            el.className = 'notifications';
-            document.body.appendChild(el);
-            return el;
-        })();
-        const notification = document.createElement('div');
-        notification.className = `notification ${type}`;
-        notification.textContent = message;
-        container.appendChild(notification);
-        setTimeout(() => notification.remove(), 5000);
-    }
-
+    showNotification(message, type = 'info') { const container = document.querySelector('.notifications') || (() => { const el = document.createElement('div'); el.className = 'notifications'; document.body.appendChild(el); return el; })(); const notification = document.createElement('div'); notification.className = `notification ${type}`; notification.textContent = message; container.appendChild(notification); setTimeout(() => notification.remove(), 5000); }
     handleDragOver(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('dragover'); }
     handleDragLeave(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('dragover'); }
-    handleDrop(e) {
-        e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('dragover');
-        if (e.dataTransfer.files?.length > 0) this.handleFileSelect(e.dataTransfer.files[0]);
-    }
+    handleDrop(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('dragover'); if (e.dataTransfer.files?.length > 0) this.handleFileSelect(e.dataTransfer.files[0]); }
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-    const app = new TelegramMiniApp();
-});
+const app = new TelegramMiniApp();
