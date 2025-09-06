@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StudentBot - Ваш помощник для изучения</title>
-    <link rel="stylesheet" href="style.css?v=0.1.0">
+    <link rel="stylesheet" href="style.css?v=1.0.1">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -15,6 +15,7 @@
         <p>Подключение к вашему аккаунту</p>
     </div>
 </div>
+
 <div id="auth-error-screen" class="screen">
     <div class="error-container">
         <div class="error-icon">⚠️</div>
@@ -29,7 +30,9 @@
 <div id="main-screen" class="screen">
     <header class="app-header">
         <div class="user-info">
-            <div class="avatar" id="user-avatar">👤</div>
+            <div class="avatar" id="user-avatar">
+                👤
+            </div>
             <div class="user-details">
                 <h3 id="user-name">Загрузка...</h3>
                 <span class="subscription-badge" id="user-subscription">FREE</span>
@@ -45,7 +48,9 @@
 
     <main class="app-main">
         <section class="card">
-            <div class="card-header"><h4>📚 Ваша библиотека</h4></div>
+            <div class="card-header">
+                <h4>📚 Ваша библиотека</h4>
+            </div>
             <div class="stats-grid">
                 <div class="stat-item">
                     <div class="stat-label">Загружено книг</div>
@@ -64,25 +69,24 @@
         </section>
 
         <section class="card">
-            <div class="card-header"><h4>📤 Загрузить книгу</h4></div>
+            <div class="card-header">
+                <h4>📤 Загрузить книгу</h4>
+            </div>
             <div class="upload-area" id="upload-area">
                 <div class="upload-icon">📄</div>
                 <h4>Перетащите файл сюда или нажмите для выбора</h4>
                 <p>Поддерживаемые форматы: PDF, DOCX, TXT</p>
-                <input type="file" id="file-input" accept=".pdf,.docx,.txt" style="display: none;">
-            </div>
-            <div class="upload-actions">
-                <button class="btn btn--primary" id="upload-btn">
+                <button class="btn btn--primary upload-btn" id="upload-btn">
                     Выбрать файл
                 </button>
-                <button class="btn btn--finish hidden" id="finish-btn">
-                    Готово
-                </button>
+                <input type="file" id="file-input" accept=".pdf,.docx,.txt" style="display: none;">
             </div>
         </section>
 
         <section class="card">
-            <div class="card-header"><h4>📖 Ваши книги</h4></div>
+            <div class="card-header">
+                <h4>📖 Ваши книги</h4>
+            </div>
             <div class="books-list" id="books-list">
                 <div class="empty-state">
                     <div class="empty-icon">📚</div>
@@ -92,8 +96,10 @@
         </section>
 
         <section class="card subscription-card">
-            <div class="card-header"><h4>💎 Расширьте возможности</h4></div>
-            <p>Получите больше места для ваших книг с премиум-подпиской.</p>
+            <div class="card-header">
+                <h4>💎 Расширьте возможности</h4>
+            </div>
+            <p>Получите больше места для ваших книг с премиум-подпиской</p>
             <button class="btn btn--primary subscription-btn">
                 Улучшить тариф
             </button>
@@ -114,6 +120,7 @@
 </div>
 
 <div class="notifications"></div>
-<script src="app.js?v=0.1.0"></script>
+
+<script src="app.js?v=1.0.1"></script>
 </body>
 </html>
