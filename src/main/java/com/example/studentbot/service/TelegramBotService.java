@@ -105,8 +105,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
         }
 
         // Проверяем доступ для всех остальных команд
-        if (!subscriptionValidationService.hasAccess(user)) {
-            sendSubscriptionRequiredMessage(chatId, user);
+        if (!checkAccessAndNotify(chatId, user)) {
             return;
         }
 
@@ -133,8 +132,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
      */
     private void handleStartCommand(Long chatId, User user) {
         // Проверяем доступ после регистрации
-        if (!subscriptionValidationService.hasAccess(user)) {
-            sendSubscriptionRequiredMessage(chatId, user);
+        if (!checkAccessAndNotify(chatId, user)) {
             return;
         }
 
@@ -219,34 +217,12 @@ public class TelegramBotService extends TelegramLongPollingBot {
      * Создание клавиатуры для проверки подписки
      */
     private InlineKeyboardMarkup createSubscriptionCheckKeyboard(SubscriptionValidationService.AccessStatus accessStatus) {
-        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-        List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+        InlineKeyboardMarkup markup = createKeyboardMarkup();
 
-        // Первый ряд - ссылка на канал
-        List<InlineKeyboardButton> row1 = new ArrayList<>();
-        InlineKeyboardButton channelBtn = new InlineKeyboardButton();
-        channelBtn.setText("📢 Подписаться на канал");
-        channelBtn.setUrl(accessStatus.getChannelUrl());
-        row1.add(channelBtn);
-        keyboard.add(row1);
+        addKeyboardRow(markup, createUrlButton("📢 Подписаться на канал", accessStatus.getChannelUrl()));
+        addKeyboardRow(markup, createCallbackButton("✅ Проверить подписку", "check_subscription"));
+        addKeyboardRow(markup, createCallbackButton("🌟 Получить Premium", "upgrade_subscription"));
 
-        // Второй ряд - проверка подписки
-        List<InlineKeyboardButton> row2 = new ArrayList<>();
-        InlineKeyboardButton checkBtn = new InlineKeyboardButton();
-        checkBtn.setText("✅ Проверить подписку");
-        checkBtn.setCallbackData("check_subscription");
-        row2.add(checkBtn);
-        keyboard.add(row2);
-
-        // Третий ряд - Premium подписка
-        List<InlineKeyboardButton> row3 = new ArrayList<>();
-        InlineKeyboardButton premiumBtn = new InlineKeyboardButton();
-        premiumBtn.setText("🌟 Получить Premium");
-        premiumBtn.setCallbackData("upgrade_subscription");
-        row3.add(premiumBtn);
-        keyboard.add(row3);
-
-        markup.setKeyboard(keyboard);
         return markup;
     }
 
@@ -348,8 +324,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
      */
     private void handleTextMessage(Long chatId, String messageText, User user) {
         // Проверяем доступ перед обработкой текстовых сообщений
-        if (!subscriptionValidationService.hasAccess(user)) {
-            sendSubscriptionRequiredMessage(chatId, user);
+        if (!checkAccessAndNotify(chatId, user)) {
             return;
         }
 
@@ -379,17 +354,11 @@ public class TelegramBotService extends TelegramLongPollingBot {
                     break;
                 case "open_upload_app":
                     // Проверяем доступ перед открытием приложения
-                    User user = userService.getUserByTelegramId(userId).orElse(null);
-                    if (user != null && !subscriptionValidationService.hasAccess(user)) {
-                        sendSubscriptionRequiredMessage(chatId, user);
-                    }
+                    checkAccessAndNotify(chatId, userId);
                     break;
                 case "view_books":
                     // Проверяем доступ перед открытием приложения
-                    User userBooks = userService.getUserByTelegramId(userId).orElse(null);
-                    if (userBooks != null && !subscriptionValidationService.hasAccess(userBooks)) {
-                        sendSubscriptionRequiredMessage(chatId, userBooks);
-                    }
+                    checkAccessAndNotify(chatId, userId);
                     break;
                 case "upgrade_subscription":
                     handleSubscriptionCommand(chatId, userService.getUserByTelegramId(userId).orElse(null));
@@ -460,26 +429,14 @@ public class TelegramBotService extends TelegramLongPollingBot {
      * Создание главного меню
      */
     private InlineKeyboardMarkup createMainMenuKeyboard() {
-        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-        List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+        InlineKeyboardMarkup markup = createKeyboardMarkup();
 
-        // Первый ряд
-        List<InlineKeyboardButton> row1 = new ArrayList<>();
-        InlineKeyboardButton uploadBtn = createWebAppButton("📤 Загрузить книги", miniAppUrl);
-        row1.add(uploadBtn);
-        keyboard.add(row1);
+        addKeyboardRow(markup, createWebAppButton("📤 Загрузить книги", miniAppUrl));
+        addKeyboardRow(markup,
+                createWebAppButton("📚 Мои книги", miniAppUrl + "?tab=books"),
+                createCallbackButton("💳 Подписка", "upgrade_subscription")
+        );
 
-        // Второй ряд
-        List<InlineKeyboardButton> row2 = new ArrayList<>();
-        InlineKeyboardButton booksBtn = createWebAppButton("📚 Мои книги", miniAppUrl + "?tab=books");
-        InlineKeyboardButton subscriptionBtn = new InlineKeyboardButton();
-        subscriptionBtn.setText("💳 Подписка");
-        subscriptionBtn.setCallbackData("upgrade_subscription");
-        row2.add(booksBtn);
-        row2.add(subscriptionBtn);
-        keyboard.add(row2);
-
-        markup.setKeyboard(keyboard);
         return markup;
     }
 
@@ -487,15 +444,8 @@ public class TelegramBotService extends TelegramLongPollingBot {
      * Создание клавиатуры для загрузки
      */
     private InlineKeyboardMarkup createUploadKeyboard() {
-        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-        List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
-
-        List<InlineKeyboardButton> row = new ArrayList<>();
-        InlineKeyboardButton uploadBtn = createWebAppButton("📱 Открыть приложение", miniAppUrl);
-        row.add(uploadBtn);
-        keyboard.add(row);
-
-        markup.setKeyboard(keyboard);
+        InlineKeyboardMarkup markup = createKeyboardMarkup();
+        addKeyboardRow(markup, createWebAppButton("📱 Открыть приложение", miniAppUrl));
         return markup;
     }
 
@@ -503,40 +453,21 @@ public class TelegramBotService extends TelegramLongPollingBot {
      * Создание клавиатуры для книг
      */
     private InlineKeyboardMarkup createBooksKeyboard() {
-        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-        List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
-
-        List<InlineKeyboardButton> row = new ArrayList<>();
-        InlineKeyboardButton booksBtn = createWebAppButton("📱 Управление книгами", miniAppUrl + "?tab=books");
-        row.add(booksBtn);
-        keyboard.add(row);
-
-        markup.setKeyboard(keyboard);
+        InlineKeyboardMarkup markup = createKeyboardMarkup();
+        addKeyboardRow(markup, createWebAppButton("📱 Управление книгами", miniAppUrl + "?tab=books"));
         return markup;
+
     }
 
     /**
      * Создание клавиатуры для подписки
      */
     private InlineKeyboardMarkup createSubscriptionKeyboard() {
-        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-        List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+        InlineKeyboardMarkup markup = createKeyboardMarkup();
 
-        List<InlineKeyboardButton> row1 = new ArrayList<>();
-        InlineKeyboardButton premiumBtn = new InlineKeyboardButton();
-        premiumBtn.setText("⭐ PREMIUM - $9.99");
-        premiumBtn.setCallbackData("buy_premium");
-        row1.add(premiumBtn);
-        keyboard.add(row1);
+        addKeyboardRow(markup, createCallbackButton("⭐ PREMIUM - $9.99", "buy_premium"));
+        addKeyboardRow(markup, createCallbackButton("🚀 BUSINESS - $29.99", "buy_business"));
 
-        List<InlineKeyboardButton> row2 = new ArrayList<>();
-        InlineKeyboardButton businessBtn = new InlineKeyboardButton();
-        businessBtn.setText("🚀 BUSINESS - $29.99");
-        businessBtn.setCallbackData("buy_business");
-        row2.add(businessBtn);
-        keyboard.add(row2);
-
-        markup.setKeyboard(keyboard);
         return markup;
     }
 
@@ -604,5 +535,65 @@ public class TelegramBotService extends TelegramLongPollingBot {
         } catch (TelegramApiException e) {
             logger.error("Ошибка при ответе на callback query: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Проверяет доступ пользователя и автоматически отправляет сообщение о необходимости подписки
+     * @return true если доступ есть, false если нет (и сообщение уже отправлено)
+     */
+    private boolean checkAccessAndNotify(Long chatId, Long userId) {
+        User user = userService.getUserByTelegramId(userId).orElse(null);
+        return checkAccessAndNotify(chatId, user);
+    }
+
+    /**
+     * Перегруженная версия для случаев, когда User уже получен
+     */
+    private boolean checkAccessAndNotify(Long chatId, User user) {
+        if (user != null && !subscriptionValidationService.hasAccess(user)) {
+            sendSubscriptionRequiredMessage(chatId, user);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Создает базовую разметку клавиатуры
+     */
+    private InlineKeyboardMarkup createKeyboardMarkup() {
+        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+        markup.setKeyboard(new ArrayList<>());
+        return markup;
+    }
+
+    /**
+     * Добавляет ряд кнопок в клавиатуру
+     */
+    private void addKeyboardRow(InlineKeyboardMarkup markup, InlineKeyboardButton... buttons) {
+        List<InlineKeyboardButton> row = new ArrayList<>();
+        for (InlineKeyboardButton button : buttons) {
+            row.add(button);
+        }
+        markup.getKeyboard().add(row);
+    }
+
+    /**
+     * Создает кнопку с текстом и callback data
+     */
+    private InlineKeyboardButton createCallbackButton(String text, String callbackData) {
+        InlineKeyboardButton button = new InlineKeyboardButton();
+        button.setText(text);
+        button.setCallbackData(callbackData);
+        return button;
+    }
+
+    /**
+     * Создает кнопку с URL
+     */
+    private InlineKeyboardButton createUrlButton(String text, String url) {
+        InlineKeyboardButton button = new InlineKeyboardButton();
+        button.setText(text);
+        button.setUrl(url);
+        return button;
     }
 }
