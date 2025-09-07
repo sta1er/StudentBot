@@ -458,28 +458,28 @@ class TelegramMiniApp {
 
     async deleteBook(bookId) {
         try {
-            const response = await this.apiRequest(`/books/${bookId}`, {
+            // Формируем URL с телеграм ID
+            const url = `${this.apiBaseUrl}/books/${bookId}?telegramId=${this.user.telegramId}`;
+            const response = await fetch(url, {
                 method: 'DELETE'
             });
 
-            // ИСПРАВЛЕНО: Проверяем на ошибку подписки
-            if (response.error === 'SUBSCRIPTION_REQUIRED') {
-                this.showSubscriptionRequiredModal(response);
-                return;
+            // Проверяем статус ответа
+            if (response.status === 204 || response.ok) {
+                this.showNotification('Книга удалена', 'success');
+                await this.loadUserData();
+            } else if (response.status === 403) {
+                const err = await response.json().catch(() => ({}));
+                this.showSubscriptionRequiredModal(err);
+            } else if (response.status === 404) {
+                this.showNotification('Книга не найдена или вы не являетесь владельцем', 'error');
+            } else {
+                const err = await response.json().catch(() => ({}));
+                this.showNotification(err.message || 'Ошибка удаления книги', 'error');
             }
-
-            this.showNotification('Книга удалена', 'success');
-            await this.loadUserData();
         } catch (error) {
             console.error('Ошибка удаления:', error);
-
-            // ИСПРАВЛЕНО: Проверяем статус 403
-            if (error.status === 403 && error.response?.error === 'SUBSCRIPTION_REQUIRED') {
-                this.showSubscriptionRequiredModal(error.response);
-                return;
-            }
-
-            this.showNotification(error.message || 'Ошибка удаления книги', 'error');
+            this.showNotification('Ошибка удаления книги', 'error');
         }
     }
 
