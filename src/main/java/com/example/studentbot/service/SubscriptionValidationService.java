@@ -17,24 +17,24 @@ import java.net.URI;
  */
 @Service
 public class SubscriptionValidationService {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(SubscriptionValidationService.class);
-    
+
     @Value("${telegram.bot.token}")
     private String botToken;
-    
+
     @Value("${channel.required:@chota_study}")
     private String requiredChannel;
-    
+
     @Value("${channel.enabled:true}")
     private boolean channelCheckEnabled;
-    
+
     private final HttpClient httpClient;
-    
+
     public SubscriptionValidationService() {
         this.httpClient = HttpClient.newHttpClient();
     }
-    
+
     /**
      * Проверяет, имеет ли пользователь доступ к функциям бота
      * @param user пользователь для проверки
@@ -46,22 +46,23 @@ public class SubscriptionValidationService {
             logger.warn("User {} is blocked", user.getTelegramId());
             return false;
         }
-        
+
         // Если проверка канала отключена - разрешаем доступ
         if (!channelCheckEnabled) {
+            logger.debug("Channel check disabled - allowing access for user {}", user.getTelegramId());
             return true;
         }
-        
+
         // Для Premium/Business пользователей доступ всегда есть
         if (user.getSubscriptionTier() != User.SubscriptionTier.FREE) {
             logger.debug("User {} has premium subscription: {}", user.getTelegramId(), user.getSubscriptionTier());
             return true;
         }
-        
+
         // Для FREE пользователей проверяем подписку на канал
         return isUserSubscribedToChannel(user.getTelegramId());
     }
-    
+
     /**
      * Проверяет подписку пользователя на обязательный канал через Telegram Bot API
      * @param userId ID пользователя Telegram
@@ -71,42 +72,68 @@ public class SubscriptionValidationService {
         if (!channelCheckEnabled) {
             return true;
         }
-        
+
         try {
-            String url = String.format("https://api.telegram.org/bot%s/getChatMember?chat_id=%s&user_id=%d", 
-                                     botToken, requiredChannel, userId);
-            
+            // ИСПРАВЛЕНО: убрал HTML-кодирование амперсанда
+            String url = String.format("https://api.telegram.org/bot%s/getChatMember?chat_id=%s&user_id=%d",
+                    botToken, requiredChannel, userId);
+
+            logger.debug("Checking subscription for user {} at URL: {}", userId, url.replaceFirst(botToken, "***TOKEN***"));
+
             HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .GET()
-                .timeout(java.time.Duration.ofSeconds(10))
-                .build();
-                
-            HttpResponse<String> response = httpClient.send(request, 
-                HttpResponse.BodyHandlers.ofString());
-            
+                    .uri(URI.create(url))
+                    .GET()
+                    .timeout(java.time.Duration.ofSeconds(10))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request,
+                    HttpResponse.BodyHandlers.ofString());
+
+            logger.debug("Telegram API response status: {}, body: {}", response.statusCode(), response.body());
+
             if (response.statusCode() == 200) {
                 String responseBody = response.body();
-                
-                // Проверяем статус пользователя в канале
-                boolean isSubscribed = responseBody.contains("\"status\":\"member\"") || 
-                                     responseBody.contains("\"status\":\"administrator\"") || 
-                                     responseBody.contains("\"status\":\"creator\"");
-                
-                logger.debug("Subscription check for user {}: {}", userId, isSubscribed);
+
+                // ИСПРАВЛЕНО: Более детальная проверка статуса пользователя в канале
+                boolean isSubscribed = responseBody.contains("\"status\":\"member\"") ||
+                        responseBody.contains("\"status\":\"administrator\"") ||
+                        responseBody.contains("\"status\":\"creator\"");
+
+                // Дополнительная проверка: если пользователь не в канале, API возвращает "left" или ошибку
+                boolean hasLeft = responseBody.contains("\"status\":\"left\"") ||
+                        responseBody.contains("\"status\":\"kicked\"") ||
+                        responseBody.contains("Bad Request: user not found");
+
+                if (hasLeft) {
+                    logger.debug("User {} has left channel or was kicked", userId);
+                    isSubscribed = false;
+                }
+
+                logger.info("Subscription check for user {}: subscribed={}", userId, isSubscribed);
                 return isSubscribed;
             } else {
-                logger.warn("Failed to check subscription for user {}: HTTP {}", userId, response.statusCode());
+                logger.warn("Failed to check subscription for user {}: HTTP {} - {}",
+                        userId, response.statusCode(), response.body());
+
+                // ИСПРАВЛЕНО: Если пользователь не найден в канале (400), считаем что не подписан
+                if (response.statusCode() == 400) {
+                    String responseBody = response.body();
+                    if (responseBody.contains("user not found") || responseBody.contains("chat not found")) {
+                        logger.info("User {} not found in channel - not subscribed", userId);
+                        return false;
+                    }
+                }
+
                 return false;
             }
-            
+
         } catch (Exception e) {
-            logger.error("Error checking subscription for user {} on channel {}: {}", userId, requiredChannel, e.getMessage());
+            logger.error("Error checking subscription for user {} on channel {}: {}", userId, requiredChannel, e.getMessage(), e);
             // В случае ошибки считаем, что подписка отсутствует
             return false;
         }
     }
-    
+
     /**
      * Нужно ли пользователю подписываться на канал
      * @param user пользователь
@@ -116,15 +143,15 @@ public class SubscriptionValidationService {
         if (!channelCheckEnabled) {
             return false;
         }
-        
+
         // Проверяем только для FREE пользователей
         if (user.getSubscriptionTier() != User.SubscriptionTier.FREE) {
             return false;
         }
-        
+
         return !isUserSubscribedToChannel(user.getTelegramId());
     }
-    
+
     /**
      * Получить информацию о статусе доступа пользователя
      * @param user пользователь
@@ -133,16 +160,16 @@ public class SubscriptionValidationService {
     public AccessStatus getAccessStatus(User user) {
         boolean hasAccess = hasAccess(user);
         boolean needsSubscription = needsChannelSubscription(user);
-        
+
         return new AccessStatus(
-            hasAccess,
-            needsSubscription,
-            user.getSubscriptionTier(),
-            requiredChannel,
-            "https://t.me/" + requiredChannel.replace("@", "")
+                hasAccess,
+                needsSubscription,
+                user.getSubscriptionTier(),
+                requiredChannel,
+                "https://t.me/" + requiredChannel.replace("@", "")
         );
     }
-    
+
     /**
      * Класс для информации о статусе доступа
      */
@@ -152,17 +179,17 @@ public class SubscriptionValidationService {
         private final User.SubscriptionTier subscriptionTier;
         private final String requiredChannel;
         private final String channelUrl;
-        
-        public AccessStatus(boolean hasAccess, boolean needsSubscription, 
-                          User.SubscriptionTier subscriptionTier, 
-                          String requiredChannel, String channelUrl) {
+
+        public AccessStatus(boolean hasAccess, boolean needsSubscription,
+                            User.SubscriptionTier subscriptionTier,
+                            String requiredChannel, String channelUrl) {
             this.hasAccess = hasAccess;
             this.needsSubscription = needsSubscription;
             this.subscriptionTier = subscriptionTier;
             this.requiredChannel = requiredChannel;
             this.channelUrl = channelUrl;
         }
-        
+
         // Getters
         public boolean hasAccess() { return hasAccess; }
         public boolean needsSubscription() { return needsSubscription; }

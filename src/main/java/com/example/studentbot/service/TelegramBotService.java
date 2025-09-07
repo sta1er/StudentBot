@@ -149,12 +149,16 @@ public class TelegramBotService extends TelegramLongPollingBot {
                         "📊 Ваш тарифный план: %s\n" +
                         "📖 Загружено книг: %d из %d\n" +
                         "💾 Максимальный размер файла: %d МБ\n\n" +
+                        "%s\n" +
                         "Выберите действие:",
-                user.getFirstName(),
+                escapeMarkdownV2(user.getFirstName()),
                 user.getSubscriptionTier().name(),
                 user.getUploadedBooksCount(),
                 user.getMaxBooks(),
-                user.getMaxFileSizeMB()
+                user.getMaxFileSizeMB(),
+                user.getSubscriptionTier() == User.SubscriptionTier.FREE ?
+                        "🙏 Спасибо за подписку на @chota_study!" :
+                        "⭐ Спасибо за Premium подписку!"
         );
 
         sendMessageWithKeyboard(chatId, welcomeMessage, createMainMenuKeyboard());
@@ -162,27 +166,53 @@ public class TelegramBotService extends TelegramLongPollingBot {
 
     /**
      * Отправка сообщения о необходимости подписки
+     * ИСПРАВЛЕНО: убрал проблемные Markdown символы
      */
     private void sendSubscriptionRequiredMessage(Long chatId, User user) {
         var accessStatus = subscriptionValidationService.getAccessStatus(user);
 
         String message = String.format(
-                "🔒 **Доступ ограничен**\n\n" +
+                "🔒 Доступ ограничен\n\n" +
                         "Привет, %s! 👋\n\n" +
                         "Для использования бота на бесплатном тарифе необходимо быть подписанным на наш канал:\n\n" +
-                        "📢 **%s** - полезные материалы для учебы\n\n" +
-                        "💡 **Что вы получите:**\n" +
+                        "📢 %s - полезные материалы для учебы\n\n" +
+                        "💡 Что вы получите:\n" +
                         "• Конспекты и шпаргалки\n" +
                         "• Советы по учебе\n" +
                         "• Анонсы новых функций бота\n" +
                         "• Эксклюзивные материалы\n\n" +
-                        "**После подписки нажмите «Проверить подписку»** ✅\n\n" +
-                        "🌟 _Или оформите Premium подписку и получите доступ без ограничений!_",
-                user.getFirstName(),
+                        "После подписки нажмите «Проверить подписку» ✅\n\n" +
+                        "🌟 Или оформите Premium подписку и получите доступ без ограничений!",
+                escapeMarkdownV2(user.getFirstName()),
                 accessStatus.getRequiredChannel()
         );
 
         sendMessageWithKeyboard(chatId, message, createSubscriptionCheckKeyboard(accessStatus));
+    }
+
+    /**
+     * Экранирование специальных символов для MarkdownV2
+     */
+    private String escapeMarkdownV2(String text) {
+        if (text == null) return "";
+        return text.replace("_", "\\_")
+                .replace("*", "\\*")
+                .replace("[", "\\[")
+                .replace("]", "\\]")
+                .replace("(", "\\(")
+                .replace(")", "\\)")
+                .replace("~", "\\~")
+                .replace("`", "\\`")
+                .replace(">", "\\>")
+                .replace("#", "\\#")
+                .replace("+", "\\+")
+                .replace("-", "\\-")
+                .replace("=", "\\=")
+                .replace("|", "\\|")
+                .replace("{", "\\{")
+                .replace("}", "\\}")
+                .replace(".", "\\.")
+                .replace("!", "\\!");
     }
 
     /**
@@ -224,28 +254,23 @@ public class TelegramBotService extends TelegramLongPollingBot {
      * Обработка команды /help
      */
     private void handleHelpCommand(Long chatId) {
-        String helpMessage = """
-            🆘 **Помощь**
-
-            📌 **Основные команды:**
-            /start - Главное меню
-            /upload - Загрузить документы
-            /books - Мои книги
-            /subscription - Управление подпиской
-            /help - Эта справка
-
-            💡 **Как пользоваться:**
-            1️⃣ Загрузите документы через Mini App
-            2️⃣ Задавайте вопросы по загруженным материалам
-            3️⃣ Получайте умные ответы от ИИ
-
-            📱 **Поддерживаемые форматы:**
-            • PDF документы
-            • DOCX файлы
-            • TXT файлы
-
-            ❓ **Есть вопросы?** Просто напишите мне!
-            """;
+        String helpMessage =
+                "🆘 Помощь\n\n" +
+                        "📌 Основные команды:\n" +
+                        "/start - Главное меню\n" +
+                        "/upload - Загрузить документы\n" +
+                        "/books - Мои книги\n" +
+                        "/subscription - Управление подпиской\n" +
+                        "/help - Эта справка\n\n" +
+                        "💡 Как пользоваться:\n" +
+                        "1️⃣ Загрузите документы через Mini App\n" +
+                        "2️⃣ Задавайте вопросы по загруженным материалам\n" +
+                        "3️⃣ Получайте умные ответы от ИИ\n\n" +
+                        "📱 Поддерживаемые форматы:\n" +
+                        "• PDF документы\n" +
+                        "• DOCX файлы\n" +
+                        "• TXT файлы\n\n" +
+                        "❓ Есть вопросы? Просто напишите мне!";
 
         sendMessage(chatId, helpMessage);
     }
@@ -256,7 +281,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
     private void handleUploadCommand(Long chatId, User user) {
         if (!user.canUploadMoreBooks()) {
             String message = String.format(
-                    "📚 **Лимит загрузок исчерпан**\n\n" +
+                    "📚 Лимит загрузок исчерпан\n\n" +
                             "Вы достигли максимального количества книг (%d) для тарифа %s.\n\n" +
                             "💡 Удалите ненужные книги или обновите тариф для загрузки новых материалов.",
                     user.getMaxBooks(),
@@ -268,9 +293,9 @@ public class TelegramBotService extends TelegramLongPollingBot {
         }
 
         String message = String.format(
-                "📤 **Загрузка документов**\n\n" +
+                "📤 Загрузка документов\n\n" +
                         "Используйте приложение для загрузки документов:\n\n" +
-                        "📊 **Ваши лимиты:**\n" +
+                        "📊 Ваши лимиты:\n" +
                         "• Загружено: %d из %d книг\n" +
                         "• Максимальный размер: %d МБ\n" +
                         "• Поддерживаемые форматы: PDF, DOCX, TXT",
@@ -286,7 +311,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
      * Обработка команды /books
      */
     private void handleBooksCommand(Long chatId, User user) {
-        String message = "📚 **Мои книги**\n\nДля управления книгами используйте приложение:";
+        String message = "📚 Мои книги\n\nДля управления книгами используйте приложение:";
         sendMessageWithKeyboard(chatId, message, createBooksKeyboard());
     }
 
@@ -300,12 +325,12 @@ public class TelegramBotService extends TelegramLongPollingBot {
                 : "";
 
         String message = String.format(
-                "💳 **Ваша подписка**\n\n" +
-                        "📦 Текущий тариф: **%s**%s\n\n" +
-                        "📊 **Возможности:**\n" +
+                "💳 Ваша подписка\n\n" +
+                        "📦 Текущий тариф: %s%s\n\n" +
+                        "📊 Возможности:\n" +
                         "• Максимум книг: %d\n" +
                         "• Размер файла: до %d МБ\n\n" +
-                        "💰 **Доступные тарифы:**\n" +
+                        "💰 Доступные тарифы:\n" +
                         "🆓 FREE - 5 книг, 100 МБ\n" +
                         "⭐ PREMIUM - 25 книг, 500 МБ - $9.99/мес\n" +
                         "🚀 BUSINESS - 100 книг, 1000 МБ - $29.99/мес",
@@ -382,47 +407,52 @@ public class TelegramBotService extends TelegramLongPollingBot {
      * Обработка проверки подписки
      */
     private void handleCheckSubscription(Long chatId, Long userId) {
-        User user = userService.getUserByTelegramId(userId).orElse(null);
-        if (user == null) {
-            sendMessage(chatId, "❌ Пользователь не найден");
-            return;
-        }
+        try {
+            User user = userService.getUserByTelegramId(userId).orElse(null);
+            if (user == null) {
+                sendMessage(chatId, "❌ Пользователь не найден");
+                return;
+            }
 
-        if (subscriptionValidationService.hasAccess(user)) {
-            // Пользователь подписался - показываем главное меню
-            String successMessage = String.format(
-                    "✅ **Отлично, %s!**\n\n" +
-                            "🎉 Подписка на канал @chota_study подтверждена!\n\n" +
-                            "Теперь вы можете пользоваться всеми функциями бота на бесплатном тарифе.\n\n" +
-                            "📚 **Ваши возможности:**\n" +
-                            "• Загрузка до %d книг\n" +
-                            "• Файлы до %d МБ\n" +
-                            "• Вопросы по материалам\n" +
-                            "• ИИ помощник\n\n" +
-                            "Добро пожаловать! 🚀",
-                    user.getFirstName(),
-                    user.getMaxBooks(),
-                    user.getMaxFileSizeMB()
-            );
+            if (subscriptionValidationService.hasAccess(user)) {
+                // Пользователь подписался - показываем главное меню
+                String successMessage = String.format(
+                        "✅ Отлично, %s!\n\n" +
+                                "🎉 Подписка на канал @chota_study подтверждена!\n\n" +
+                                "Теперь вы можете пользоваться всеми функциями бота на бесплатном тарифе.\n\n" +
+                                "📚 Ваши возможности:\n" +
+                                "• Загрузка до %d книг\n" +
+                                "• Файлы до %d МБ\n" +
+                                "• Вопросы по материалам\n" +
+                                "• ИИ помощник\n\n" +
+                                "Добро пожаловать! 🚀",
+                        escapeMarkdownV2(user.getFirstName()),
+                        user.getMaxBooks(),
+                        user.getMaxFileSizeMB()
+                );
 
-            sendMessageWithKeyboard(chatId, successMessage, createMainMenuKeyboard());
-        } else {
-            // Пользователь все еще не подписан
-            var accessStatus = subscriptionValidationService.getAccessStatus(user);
-            String notSubscribedMessage = String.format(
-                    "❌ **Подписка не найдена**\n\n" +
-                            "%s, похоже вы еще не подписались на канал %s\n\n" +
-                            "🔄 **Что делать:**\n" +
-                            "1. Нажмите кнопку «Подписаться на канал»\n" +
-                            "2. Подпишитесь на канал %s\n" +
-                            "3. Вернитесь и нажмите «Проверить подписку»\n\n" +
-                            "💡 _Или оформите Premium и пользуйтесь без ограничений!_",
-                    user.getFirstName(),
-                    accessStatus.getRequiredChannel(),
-                    accessStatus.getRequiredChannel()
-            );
+                sendMessageWithKeyboard(chatId, successMessage, createMainMenuKeyboard());
+            } else {
+                // Пользователь все еще не подписан
+                var accessStatus = subscriptionValidationService.getAccessStatus(user);
+                String notSubscribedMessage = String.format(
+                        "❌ Подписка не найдена\n\n" +
+                                "%s, похоже вы еще не подписались на канал %s\n\n" +
+                                "🔄 Что делать:\n" +
+                                "1. Нажмите кнопку «Подписаться на канал»\n" +
+                                "2. Подпишитесь на канал %s\n" +
+                                "3. Вернитесь и нажмите «Проверить подписку»\n\n" +
+                                "💡 Или оформите Premium и пользуйтесь без ограничений!",
+                        escapeMarkdownV2(user.getFirstName()),
+                        accessStatus.getRequiredChannel(),
+                        accessStatus.getRequiredChannel()
+                );
 
-            sendMessageWithKeyboard(chatId, notSubscribedMessage, createSubscriptionCheckKeyboard(accessStatus));
+                sendMessageWithKeyboard(chatId, notSubscribedMessage, createSubscriptionCheckKeyboard(accessStatus));
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка при проверке подписки для пользователя {}: {}", userId, e.getMessage(), e);
+            sendMessage(chatId, "❌ Произошла ошибка при проверке подписки. Попробуйте еще раз через несколько секунд.");
         }
     }
 
@@ -528,7 +558,8 @@ public class TelegramBotService extends TelegramLongPollingBot {
         SendMessage message = new SendMessage();
         message.setChatId(chatId.toString());
         message.setText(text);
-        message.setParseMode("Markdown");
+        // Убираем parseMode по умолчанию, чтобы избежать ошибок парсинга
+        // message.setParseMode("Markdown");
 
         try {
             execute(message);
@@ -544,7 +575,8 @@ public class TelegramBotService extends TelegramLongPollingBot {
         SendMessage message = new SendMessage();
         message.setChatId(chatId.toString());
         message.setText(text);
-        message.setParseMode("Markdown");
+        // Убираем parseMode по умолчанию, чтобы избежать ошибок парсинга
+        // message.setParseMode("Markdown");
         message.setReplyMarkup(keyboard);
 
         try {

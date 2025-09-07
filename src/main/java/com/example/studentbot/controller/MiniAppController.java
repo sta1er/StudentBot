@@ -44,11 +44,13 @@ public class MiniAppController {
         try {
             String initData = request.get("initData");
             if (initData == null || initData.isEmpty()) {
+                logger.warn("Auth request without initData");
                 return ResponseEntity.badRequest().build();
             }
 
             // Проверяем подпись Telegram
             if (!authService.validateTelegramData(initData)) {
+                logger.warn("Invalid telegram signature");
                 return ResponseEntity.status(401).build();
             }
 
@@ -64,7 +66,7 @@ public class MiniAppController {
                     userInfo.getLanguageCode()
             );
 
-            // Проверяем доступ пользователя
+            // ПРОВЕРКА ДОСТУПА: Проверяем подписку пользователя
             var accessStatus = subscriptionValidationService.getAccessStatus(user);
 
             if (!accessStatus.hasAccess()) {
@@ -79,6 +81,7 @@ public class MiniAppController {
                 subscriptionRequired.put("channelName", accessStatus.getRequiredChannel());
                 subscriptionRequired.put("subscriptionTier", user.getSubscriptionTier().name());
                 subscriptionRequired.put("userName", user.getFirstName());
+                subscriptionRequired.put("telegramId", user.getTelegramId()); // ИСПРАВЛЕНО: добавляем telegramId
 
                 return ResponseEntity.status(403).body(subscriptionRequired);
             }
@@ -103,23 +106,35 @@ public class MiniAppController {
     }
 
     /**
-     * Проверка подписки на канал (новый endpoint)
+     * Проверка подписки на канал с улучшенным логированием
      */
     @PostMapping("/check-subscription")
     public ResponseEntity<Map<String, Object>> checkSubscription(@RequestBody Map<String, Long> request) {
+        Long telegramId = null;
+
         try {
-            Long telegramId = request.get("telegramId");
+            telegramId = request.get("telegramId");
+            logger.info("Check subscription request for telegramId: {}", telegramId);
+
             if (telegramId == null) {
+                logger.warn("Check subscription request without telegramId");
                 return ResponseEntity.badRequest().build();
             }
 
             var userOpt = userService.getUserByTelegramId(telegramId);
             if (userOpt.isEmpty()) {
-                return ResponseEntity.badRequest().build();
+                logger.warn("User not found for telegramId: {}", telegramId);
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("subscribed", false);
+                errorResponse.put("message", "Пользователь не найден");
+                return ResponseEntity.ok(errorResponse); // ИСПРАВЛЕНО: возвращаем 200 вместо 400
             }
 
             var user = userOpt.get();
             var accessStatus = subscriptionValidationService.getAccessStatus(user);
+
+            logger.info("Access status for user {}: hasAccess={}, needsSubscription={}",
+                    telegramId, accessStatus.hasAccess(), accessStatus.needsSubscription());
 
             Map<String, Object> response = new HashMap<>();
 
@@ -128,19 +143,28 @@ public class MiniAppController {
                 response.put("message", user.getSubscriptionTier() == com.example.studentbot.model.User.SubscriptionTier.FREE ?
                         "Спасибо за подписку на " + accessStatus.getRequiredChannel() + "!" :
                         "У вас Premium доступ!");
+
+                logger.info("User {} has access", telegramId);
             } else {
                 response.put("subscribed", false);
                 response.put("message", "Подписка на канал " + accessStatus.getRequiredChannel() + " не найдена");
                 response.put("channelUrl", accessStatus.getChannelUrl());
                 response.put("channelName", accessStatus.getRequiredChannel());
+
+                logger.info("User {} does not have access", telegramId);
             }
 
             response.put("subscriptionTier", user.getSubscriptionTier().name());
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            logger.error("Ошибка проверки подписки: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).build();
+            logger.error("Ошибка проверки подписки для пользователя {}: {}", telegramId, e.getMessage(), e);
+
+            // Возвращаем структурированную ошибку вместо 500
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("subscribed", false);
+            errorResponse.put("message", "Ошибка при проверке подписки. Попробуйте еще раз.");
+            return ResponseEntity.ok(errorResponse);
         }
     }
 
@@ -154,13 +178,15 @@ public class MiniAppController {
             // Проверяем пользователя
             var userOpt = userService.getUserByTelegramId(telegramId);
             if (userOpt.isEmpty()) {
+                logger.warn("Upload attempt for non-existent user: {}", telegramId);
                 return ResponseEntity.badRequest().build();
             }
 
             var user = userOpt.get();
 
-            // Проверяем доступ пользователя
+            // ПРОВЕРКА ДОСТУПА: Проверяем подписку перед загрузкой
             if (!subscriptionValidationService.hasAccess(user)) {
+                logger.warn("Upload attempt by user {} without subscription", telegramId);
                 var accessStatus = subscriptionValidationService.getAccessStatus(user);
                 Map<String, Object> errorResponse = new HashMap<>();
                 errorResponse.put("error", "SUBSCRIPTION_REQUIRED");
@@ -172,15 +198,18 @@ public class MiniAppController {
 
             // Проверяем лимиты
             if (!user.canUploadMoreBooks()) {
+                logger.warn("User {} reached books limit", telegramId);
                 return ResponseEntity.status(409).build(); // Conflict - лимит достигнут
             }
 
             if (!user.canUploadFile(file.getSize())) {
+                logger.warn("File too large for user {}: {} bytes", telegramId, file.getSize());
                 return ResponseEntity.status(413).build(); // Payload Too Large
             }
 
             // Проверяем тип файла
             if (!isValidFileType(file)) {
+                logger.warn("Invalid file type for user {}: {}", telegramId, file.getContentType());
                 return ResponseEntity.status(415).build(); // Unsupported Media Type
             }
 
@@ -220,11 +249,12 @@ public class MiniAppController {
     @GetMapping("/books/{telegramId}")
     public ResponseEntity getUserBooks(@PathVariable Long telegramId) {
         try {
-            // Проверяем доступ пользователя
+            // ПРОВЕРКА ДОСТУПА: Проверяем подписку перед получением списка книг
             var userOpt = userService.getUserByTelegramId(telegramId);
             if (userOpt.isPresent()) {
                 var user = userOpt.get();
                 if (!subscriptionValidationService.hasAccess(user)) {
+                    logger.warn("Books list request by user {} without subscription", telegramId);
                     var accessStatus = subscriptionValidationService.getAccessStatus(user);
                     Map<String, Object> errorResponse = new HashMap<>();
                     errorResponse.put("error", "SUBSCRIPTION_REQUIRED");
@@ -252,13 +282,15 @@ public class MiniAppController {
         try {
             var userOpt = userService.getUserByTelegramId(telegramId);
             if (userOpt.isEmpty()) {
+                logger.warn("Delete attempt for non-existent user: {}", telegramId);
                 return ResponseEntity.badRequest().build();
             }
 
             var user = userOpt.get();
 
-            // Проверяем доступ пользователя
+            // ПРОВЕРКА ДОСТУПА: Проверяем подписку перед удалением
             if (!subscriptionValidationService.hasAccess(user)) {
+                logger.warn("Delete attempt by user {} without subscription", telegramId);
                 var accessStatus = subscriptionValidationService.getAccessStatus(user);
                 Map<String, Object> errorResponse = new HashMap<>();
                 errorResponse.put("error", "SUBSCRIPTION_REQUIRED");
@@ -270,6 +302,7 @@ public class MiniAppController {
 
             var bookOpt = bookService.getBookMetadata(bookId);
             if (bookOpt.isEmpty() || !bookOpt.get().getUploadedBy().equals(telegramId)) {
+                logger.warn("Book {} not found or doesn't belong to user {}", bookId, telegramId);
                 return ResponseEntity.status(404).build();
             }
 
@@ -280,6 +313,7 @@ public class MiniAppController {
             user.decrementUploadedBooks();
             userService.updateUser(user);
 
+            logger.info("Book {} deleted by user {}", bookId, telegramId);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             logger.error("Ошибка удаления книги: {}", e.getMessage(), e);

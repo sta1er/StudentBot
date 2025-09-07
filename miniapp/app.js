@@ -97,20 +97,23 @@ class TelegramMiniApp {
                 headers: { 'Content-Type': 'application/json' }
             });
 
-            // НОВАЯ ЛОГИКА: Проверяем ответ на подписку
+            // Проверяем ответ на подписку
             if (response.error === 'SUBSCRIPTION_REQUIRED') {
+                console.log('Subscription required, showing modal');
                 this.showSubscriptionRequiredModal(response);
                 return;
             }
 
+            // Если все ок - сохраняем пользователя и загружаем данные
             this.user = response;
             await this.loadUserData();
             this.showScreen('main-screen');
         } catch (error) {
             console.error('Ошибка аутентификации:', error);
 
-            // Проверяем, не ошибка ли подписки в catch блоке
-            if (error.response && error.response.error === 'SUBSCRIPTION_REQUIRED') {
+            // Проверяем статус 403 для подписки
+            if (error.status === 403 && error.response?.error === 'SUBSCRIPTION_REQUIRED') {
+                console.log('403 error - subscription required');
                 this.showSubscriptionRequiredModal(error.response);
                 return;
             }
@@ -120,8 +123,7 @@ class TelegramMiniApp {
     }
 
     /**
-     * НОВЫЙ МЕТОД: Показ модального окна о необходимости подписки
-     * Использует СУЩЕСТВУЮЩУЮ модальную систему - НЕ МЕНЯЕТ ДИЗАЙН!
+     * ИСПРАВЛЕНО: Показ модального окна о необходимости подписки
      */
     showSubscriptionRequiredModal(subscriptionData) {
         console.log('Показываем модальное окно о подписке:', subscriptionData);
@@ -129,6 +131,9 @@ class TelegramMiniApp {
         const channelName = subscriptionData.channelName || '@chota_study';
         const channelUrl = subscriptionData.channelUrl || 'https://t.me/chota_study';
         const userName = subscriptionData.userName || 'Пользователь';
+
+        // Сохраняем данные подписки для последующих проверок
+        this.subscriptionData = subscriptionData;
 
         this.showModal({
             title: '🔒 Требуется подписка',
@@ -148,7 +153,7 @@ class TelegramMiniApp {
     }
 
     /**
-     * НОВЫЙ МЕТОД: Открытие канала
+     * Открытие канала
      */
     openChannel(channelUrl) {
         console.log('Открываем канал:', channelUrl);
@@ -160,49 +165,88 @@ class TelegramMiniApp {
     }
 
     /**
-     * НОВЫЙ МЕТОД: Проверка подписки
+     * Проверка подписки с лучшей обработкой ошибок
      */
     async checkSubscription() {
         try {
             console.log('Проверяем подписку...');
 
+            // Используем правильный telegramId
+            const telegramId = this.subscriptionData?.telegramId ||
+                (this.user && this.user.telegramId) ||
+                this.extractTelegramIdFromInitData() ||
+                0;
+
+            console.log('Using telegramId for check:', telegramId);
+
             const response = await this.apiRequest('/check-subscription', {
                 method: 'POST',
-                body: JSON.stringify({ telegramId: this.user?.telegramId || 0 }),
+                body: JSON.stringify({ telegramId: telegramId }),
                 headers: { 'Content-Type': 'application/json' }
             });
 
+            console.log('Ответ от проверки подписки:', response);
+
             if (response.subscribed) {
-                // Подписка подтверждена - перезагружаем приложение
+                // Подписка подтверждена - показываем успех и перезагружаем
                 this.showNotification('✅ Подписка подтверждена! Добро пожаловать!', 'success');
-                // Повторно аутентифицируемся для получения доступа
+
+                // ИСПРАВЛЕНО: Даем время показать уведомление, затем перезагружаем
                 setTimeout(() => {
                     window.location.reload();
                 }, 1500);
             } else {
-                // Подписка не найдена
-                this.showNotification('❌ ' + response.message, 'error');
+                // Подписка не найдена - показываем ошибку
+                const message = response.message || 'Подписка на канал не найдена';
+                this.showNotification('❌ ' + message, 'error');
 
-                // Показываем модальное окно снова через 2 секунды
+                // Показываем модальное окно снова через 3 секунды
                 setTimeout(() => {
                     this.showSubscriptionRequiredModal({
-                        channelName: response.channelName,
-                        channelUrl: response.channelUrl,
-                        userName: this.user?.firstName || 'Пользователь'
+                        channelName: response.channelName || this.subscriptionData?.channelName || '@chota_study',
+                        channelUrl: response.channelUrl || this.subscriptionData?.channelUrl || 'https://t.me/chota_study',
+                        userName: this.subscriptionData?.userName || 'Пользователь'
                     });
-                }, 2000);
+                }, 3000);
             }
         } catch (error) {
             console.error('Ошибка проверки подписки:', error);
             this.showNotification('Ошибка проверки подписки. Попробуйте еще раз.', 'error');
+
+            // В случае ошибки тоже показываем модальное окно снова
+            setTimeout(() => {
+                if (this.subscriptionData) {
+                    this.showSubscriptionRequiredModal(this.subscriptionData);
+                }
+            }, 3000);
         }
+    }
+
+    /**
+     * Извлечение Telegram ID из initData
+     */
+    extractTelegramIdFromInitData() {
+        try {
+            if (!this.tg || !this.tg.initData) return null;
+
+            const params = new URLSearchParams(this.tg.initData);
+            const userParam = params.get('user');
+
+            if (userParam) {
+                const userData = JSON.parse(decodeURIComponent(userParam));
+                return userData.id;
+            }
+        } catch (e) {
+            console.error('Ошибка извлечения telegram ID:', e);
+        }
+        return null;
     }
 
     async loadUserData() {
         try {
             const response = await this.apiRequest(`/books/${this.user.telegramId}`);
 
-            // Проверяем на ошибку подписки и в загрузке данных
+            // ИСПРАВЛЕНО: Проверяем на ошибку подписки в загрузке данных
             if (response.error === 'SUBSCRIPTION_REQUIRED') {
                 this.showSubscriptionRequiredModal(response);
                 return;
@@ -219,8 +263,8 @@ class TelegramMiniApp {
         } catch (error) {
             console.error('Ошибка загрузки данных:', error);
 
-            // Проверяем на ошибку подписки и в catch блоке
-            if (error.response && error.response.error === 'SUBSCRIPTION_REQUIRED') {
+            // ИСПРАВЛЕНО: Проверяем статус 403
+            if (error.status === 403 && error.response?.error === 'SUBSCRIPTION_REQUIRED') {
                 this.showSubscriptionRequiredModal(error.response);
                 return;
             }
@@ -354,7 +398,7 @@ class TelegramMiniApp {
 
             const result = await response.json();
 
-            // Проверяем на ошибку подписки
+            // ИСПРАВЛЕНО: Проверяем статус 403 для подписки
             if (response.status === 403 && result.error === 'SUBSCRIPTION_REQUIRED') {
                 this.showSubscriptionRequiredModal(result);
                 uploadProgress?.classList.add('hidden');
@@ -418,7 +462,7 @@ class TelegramMiniApp {
                 method: 'DELETE'
             });
 
-            // Проверяем на ошибку подписки
+            // ИСПРАВЛЕНО: Проверяем на ошибку подписки
             if (response.error === 'SUBSCRIPTION_REQUIRED') {
                 this.showSubscriptionRequiredModal(response);
                 return;
@@ -429,8 +473,8 @@ class TelegramMiniApp {
         } catch (error) {
             console.error('Ошибка удаления:', error);
 
-            // Проверяем на ошибку подписки в catch блоке
-            if (error.response && error.response.error === 'SUBSCRIPTION_REQUIRED') {
+            // ИСПРАВЛЕНО: Проверяем статус 403
+            if (error.status === 403 && error.response?.error === 'SUBSCRIPTION_REQUIRED') {
                 this.showSubscriptionRequiredModal(error.response);
                 return;
             }
@@ -439,7 +483,7 @@ class TelegramMiniApp {
         }
     }
 
-    // ИСПОЛЬЗУЕМ СУЩЕСТВУЮЩУЮ МОДАЛЬНУЮ СИСТЕМУ - НЕ МЕНЯЕМ ДИЗАЙН!
+    // ИСПОЛЬЗУЕМ СУЩЕСТВУЮЩУЮ МОДАЛЬНУЮ СИСТЕМУ
     showModal({ title, message, confirmText = 'OK', cancelText = 'Отмена', showCancel = false, onConfirm, onCancel }) {
         const modal = document.getElementById('app-modal');
         const titleEl = document.getElementById('modal-title');
@@ -533,25 +577,34 @@ class TelegramMiniApp {
         }
     }
 
+    /**
+     * Улучшенная обработка API запросов
+     */
     async apiRequest(endpoint, options = {}) {
         const url = `${this.apiBaseUrl}${endpoint}`;
 
         try {
             const response = await fetch(url, options);
 
+            // Создаем объект ошибки со статусом
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 const error = new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                error.status = response.status; // ИСПРАВЛЕНО: Добавляем статус
                 error.response = errorData;
                 throw error;
             }
 
             return await response.json();
         } catch (error) {
-            if (error.response) {
-                throw error; // Пробрасываем ошибку с response данными
+            // Если у ошибки есть response - пробрасываем как есть
+            if (error.response || error.status) {
+                throw error;
             }
-            throw new Error(error.message || 'Network error');
+            // Иначе создаем новую ошибку
+            const networkError = new Error(error.message || 'Network error');
+            networkError.status = 0;
+            throw networkError;
         }
     }
 
