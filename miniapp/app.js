@@ -42,13 +42,19 @@ class TelegramMiniApp {
         const uploadArea = document.getElementById('upload-area');
         const fileInput = document.getElementById('file-input');
         const uploadBtn = document.getElementById('upload-btn');
-        if (uploadBtn) uploadBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fileInput.click(); });
-        if (fileInput) fileInput.addEventListener('change', (e) => { if (e.target.files?.[0]) this.handleFileSelect(e.target.files[0]); });
+        const uploadAgainBtn = document.getElementById('upload-again-btn');
+
+        // Открытие диалога выбора файла по клику на кнопки
+        uploadBtn?.addEventListener('click', () => fileInput.click());
+        uploadAgainBtn?.addEventListener('click', () => fileInput.click());
+        fileInput?.addEventListener('change', (e) => { if (e.target.files?.[0]) this.handleFileSelect(e.target.files[0]); });
+
+        // Drag & Drop
         if (uploadArea) {
             uploadArea.addEventListener('dragover', (e) => this.handleDragOver(e));
             uploadArea.addEventListener('dragleave', (e) => this.handleDragLeave(e));
             uploadArea.addEventListener('drop', (e) => this.handleDrop(e));
-            uploadArea.addEventListener('click', (e) => { if (e.target !== uploadBtn && !uploadBtn?.contains(e.target)) fileInput.click(); });
+            uploadArea.addEventListener('click', () => fileInput.click());
         }
 
         document.querySelector('.subscription-btn')?.addEventListener('click', () => {
@@ -62,16 +68,23 @@ class TelegramMiniApp {
 
         document.getElementById('theme-toggle')?.addEventListener('click', () => this.toggleTheme());
 
-        // Новая логика для кнопки "Готово"
-        document.getElementById('finish-btn')?.addEventListener('click', () => {
-            this.tg.close();
-        });
+        document.getElementById('finish-btn')?.addEventListener('click', () => this.tg.close());
 
         document.getElementById('app-modal')?.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal-overlay') || e.target.id === 'modal-cancel') {
                 this.closeModal();
             }
         });
+    }
+
+    resetUploadUI() {
+        document.getElementById('initial-upload-container')?.classList.remove('hidden');
+        document.getElementById('post-upload-container')?.classList.add('hidden');
+    }
+
+    showPostUploadUI() {
+        document.getElementById('initial-upload-container')?.classList.add('hidden');
+        document.getElementById('post-upload-container')?.classList.remove('hidden');
     }
 
     async authenticateUser() {
@@ -167,8 +180,7 @@ class TelegramMiniApp {
     }
 
     async handleFileSelect(file) {
-        // Прячем кнопку "Готово" при начале новой загрузки
-        document.getElementById('finish-btn')?.classList.add('hidden');
+        this.resetUploadUI(); // Возвращаем UI к начальному состоянию перед новой загрузкой
         if (!this.isValidFileType(file)) { this.showNotification('Неподдерживаемый тип файла.', 'error'); return; }
         if (!this.isValidFileSize(file)) { this.showNotification(`Файл слишком большой: макс. ${this.userStats.maxFileSizeMB} МБ`, 'error'); return; }
         if (this.userStats.booksCount >= this.userStats.booksLimit) { this.showNotification('Достигнут лимит книг.', 'error'); return; }
@@ -183,8 +195,7 @@ class TelegramMiniApp {
             formData.append('telegramId', this.user.telegramId);
             const response = await this.apiRequest('/upload', { method: 'POST', body: formData });
             this.showNotification(`Файл "${response.filename}" успешно загружен!`, 'success');
-            // Показываем кнопку "Готово" после успешной загрузки
-            document.getElementById('finish-btn')?.classList.remove('hidden');
+            this.showPostUploadUI(); // Показываем кнопки "Загрузить еще" и "Готово"
             await this.loadUserData();
         } catch (error) {
             let msg = 'Ошибка при загрузке файла';
@@ -238,6 +249,7 @@ class TelegramMiniApp {
     closeModal() { document.getElementById('app-modal')?.classList.add('hidden'); }
 
     showNotification(message, type = 'info') { const container = document.querySelector('.notifications') || (() => { const el = document.createElement('div'); el.className = 'notifications'; document.body.appendChild(el); return el; })(); const notification = document.createElement('div'); notification.className = `notification ${type}`; notification.textContent = message; container.appendChild(notification); setTimeout(() => notification.remove(), 5000); }
+
     handleDragOver(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('dragover'); }
     handleDragLeave(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('dragover'); }
     handleDrop(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('dragover'); if (e.dataTransfer.files?.length > 0) this.handleFileSelect(e.dataTransfer.files[0]); }
