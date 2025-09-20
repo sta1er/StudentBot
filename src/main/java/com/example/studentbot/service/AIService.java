@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * Сервис для работы с AI API (OpenRouter/Gemini)
+ * Улучшенный сервис для работы с AI API с поддержкой RAG
  */
 @Service
 public class AIService {
@@ -31,7 +31,7 @@ public class AIService {
     @Value("${ai.openrouter.base-url:https://openrouter.ai/api/v1}")
     private String openRouterBaseUrl;
 
-    @Value("${ai.openrouter.model:google/gemini-2.0-flash-exp:free}")
+    @Value("${ai.openrouter.model:deepseek/deepseek-r1-0528:free}")
     private String openRouterModel;
 
     @Value("${ai.gemini.base-url:https://generativelanguage.googleapis.com/v1beta}")
@@ -46,52 +46,174 @@ public class AIService {
     @Value("${ai.temperature:0.7}")
     private double temperature;
 
+    @Value("${ai.rag.max-context-length:3000}")
+    private int maxContextLength;
+
+    @Value("${ai.rag.max-chunks:5}")
+    private int maxChunks;
+
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
     private final UserService userService;
     private final BookService bookService;
+    private final VectorSearchService vectorSearchService;
 
     public AIService(RestTemplate restTemplate, ObjectMapper objectMapper,
-                     UserService userService, BookService bookService) {
+                     UserService userService, BookService bookService,
+                     VectorSearchService vectorSearchService) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
         this.userService = userService;
         this.bookService = bookService;
+        this.vectorSearchService = vectorSearchService;
     }
 
     /**
-     * Обработка текстового сообщения пользователя
+     * Улучшенная обработка текстового сообщения с RAG
      */
     public String processTextMessage(String message, Long userId) {
         try {
-            logger.info("Обработка сообщения от пользователя {}: {}", userId, message);
+            logger.info("Обработка RAG-запроса от пользователя {}: {}", userId,
+                    message.length() > 50 ? message.substring(0, 50) + "..." : message);
 
-            // Получаем контекст пользователя
-            String context = buildUserContext(userId, message);
+            float[] queryVector = getEmbedding(message);
+            List<String> relevantChunks = vectorSearchService.findRelevantChunks(userId, queryVector);
 
-            // Формируем системный промпт
-            String systemPrompt = buildSystemPrompt();
+            if (relevantChunks.isEmpty()) {
+                logger.warn("Не найдено релевантных фрагментов для пользователя {}. Используем общие знания.", userId);
+                String fallbackPrompt = "Ты - умный помощник для студентов. Отвечай на русском языке четко и полезно. " +
+                        "В материалах пользователя не найдено информации по этому вопросу, поэтому отвечай, используя свои общие знания.";
+                return sendAIRequest(fallbackPrompt, message, null, null);
+            }
 
-            // Отправляем запрос к AI API
-            String response = sendAIRequest(systemPrompt, message, context, null);
+            // Оптимизируем контекст по длине
+            String optimizedContext = optimizeContext(relevantChunks);
+            String augmentedPrompt = buildAugmentedPrompt(optimizedContext, message);
 
-            logger.info("Получен ответ от AI API для пользователя {}", userId);
-            return response;
+            logger.debug("Используется контекст длиной {} символов из {} фрагментов",
+                    optimizedContext.length(), relevantChunks.size());
+
+            return sendAIRequest(augmentedPrompt, "", null, null);
 
         } catch (Exception e) {
-            logger.error("Ошибка при обработке сообщения: {}", e.getMessage(), e);
+            logger.error("Ошибка при обработке RAG-сообщения: {}", e.getMessage(), e);
             return "Извините, произошла ошибка при обработке вашего запроса. Попробуйте еще раз.";
         }
     }
 
     /**
-     * Обработка вопроса по конкретной книге с файлом
+     * Оптимизация контекста по длине для избежания превышения лимитов модели
+     */
+    private String optimizeContext(List<String> chunks) {
+        if (chunks.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder context = new StringBuilder();
+        int chunksUsed = 0;
+
+        for (String chunk : chunks) {
+            if (chunksUsed >= maxChunks) {
+                break;
+            }
+
+            // Проверяем, не превысим ли лимит контекста
+            if (context.length() + chunk.length() + 50 > maxContextLength) { // +50 для разделителей
+                // Если это первый чанк и он слишком большой, обрезаем его
+                if (chunksUsed == 0) {
+                    String truncatedChunk = chunk.substring(0, Math.min(chunk.length(), maxContextLength - 100));
+                    context.append(truncatedChunk);
+                    if (truncatedChunk.length() < chunk.length()) {
+                        context.append("...[обрезано]");
+                    }
+                    chunksUsed++;
+                }
+                break;
+            }
+
+            if (chunksUsed > 0) {
+                context.append("\n\n---\n\n");
+            }
+            context.append(chunk);
+            chunksUsed++;
+        }
+
+        logger.debug("Оптимизирован контекст: использовано {} из {} фрагментов, итоговая длина {} символов",
+                chunksUsed, chunks.size(), context.length());
+
+        return context.toString();
+    }
+
+    /**
+     * Получение векторного представления для текста
+     */
+    public float[] getEmbedding(String text) throws Exception {
+        if (text == null || text.trim().isEmpty()) {
+            throw new IllegalArgumentException("Текст для векторизации не может быть пустым");
+        }
+
+        // Обрезаем текст если он слишком длинный для embedding модели
+        String truncatedText = text.length() > 8000 ? text.substring(0, 8000) : text;
+
+        String embeddingModel = "openai/text-embedding-3-small";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(apiKey);
+        headers.set("HTTP-Referer", "http://localhost:8080");
+        headers.set("X-Title", "Student Helper Bot");
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", embeddingModel);
+        requestBody.put("input", truncatedText);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        String url = openRouterBaseUrl + "/embeddings";
+
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+
+        if (response.getStatusCode().is2xxSuccessful()) {
+            JsonNode jsonResponse = objectMapper.readTree(response.getBody());
+            JsonNode embeddingNode = jsonResponse.get("data").get(0).get("embedding");
+
+            float[] vector = new float[embeddingNode.size()];
+            for (int i = 0; i < embeddingNode.size(); i++) {
+                vector[i] = embeddingNode.get(i).floatValue();
+            }
+
+            logger.debug("Получен вектор размерности {} для текста длиной {} символов",
+                    vector.length, truncatedText.length());
+
+            return vector;
+        } else {
+            String errorMsg = "OpenRouter Embedding API error: " + response.getStatusCode();
+            if (response.getBody() != null) {
+                errorMsg += " - " + response.getBody();
+            }
+            throw new RuntimeException(errorMsg);
+        }
+    }
+
+    /**
+     * Обработка вопроса по конкретной книге
      */
     public String processBookQuestion(String question, Long bookId, Long userId) {
         try {
             logger.info("Обработка вопроса по книге {} от пользователя {}", bookId, userId);
 
-            // Получаем файл книги из MinIO
+            // Сначала пробуем найти ответ в векторной базе
+            float[] queryVector = getEmbedding(question);
+            List<String> relevantChunks = vectorSearchService.findRelevantChunksInBook(userId, bookId, queryVector);
+
+            if (!relevantChunks.isEmpty()) {
+                String context = optimizeContext(relevantChunks);
+                String bookTitle = bookService.getBookTitle(bookId);
+                String augmentedPrompt = buildBookQuestionPrompt(context, question, bookTitle);
+                return sendAIRequest(augmentedPrompt, "", null, null);
+            }
+
+            // Если в векторной базе нет данных, пробуем работать с файлом напрямую
+            logger.debug("Векторные данные не найдены, пробуем работать с файлом напрямую");
             Resource bookFile = bookService.getBookFile(bookId);
             String bookTitle = bookService.getBookTitle(bookId);
 
@@ -99,7 +221,6 @@ public class AIService {
                     "Ты помощник для студентов. Отвечай на вопросы по загруженному документу '%s'. " +
                             "Будь конкретным и ссылайся на содержимое документа.", bookTitle);
 
-            // Отправляем запрос с файлом
             return sendAIRequest(systemPrompt, question, null, bookFile);
 
         } catch (Exception e) {
@@ -113,12 +234,23 @@ public class AIService {
      */
     public String generateBookSummary(Long bookId, Long userId) {
         try {
-            Resource bookFile = bookService.getBookFile(bookId);
+            // Пробуем собрать краткое содержание из векторных данных
+            String summaryQuery = "основные темы ключевые идеи выводы содержание";
+            float[] queryVector = getEmbedding(summaryQuery);
+            List<String> relevantChunks = vectorSearchService.findRelevantChunksInBook(userId, bookId, queryVector);
+
             String bookTitle = bookService.getBookTitle(bookId);
 
+            if (!relevantChunks.isEmpty()) {
+                String context = optimizeContext(relevantChunks);
+                String prompt = buildSummaryPrompt(context, bookTitle);
+                return sendAIRequest(prompt, "", null, null);
+            }
+
+            // Если векторных данных нет, работаем с файлом
+            Resource bookFile = bookService.getBookFile(bookId);
             String systemPrompt = "Создай структурированное краткое содержание загруженного документа. " +
                     "Выдели основные темы, ключевые идеи и выводы.";
-
             String userPrompt = String.format("Создай краткое содержание документа '%s'", bookTitle);
 
             return sendAIRequest(systemPrompt, userPrompt, null, bookFile);
@@ -130,11 +262,53 @@ public class AIService {
     }
 
     /**
+     * Построение промпта для RAG
+     */
+    private String buildAugmentedPrompt(String context, String userQuestion) {
+        return "Ты — экспертный ассистент для студентов. Твоя задача — ответить на вопрос пользователя, " +
+                "основываясь на предоставленном контексте из загруженных пользователем материалов.\n\n" +
+
+                "ПРАВИЛА:\n" +
+                "1. Отвечай ТОЛЬКО на основе предоставленного контекста\n" +
+                "2. Если ответа нет в контексте, честно скажи: 'В предоставленных материалах нет информации для ответа на этот вопрос'\n" +
+                "3. Цитируй конкретные фрагменты из контекста\n" +
+                "4. Отвечай четко, структурированно и по делу\n" +
+                "5. Используй русский язык\n\n" +
+
+                "=== КОНТЕКСТ ИЗ МАТЕРИАЛОВ ПОЛЬЗОВАТЕЛЯ ===\n" +
+                context + "\n" +
+                "=== КОНЕЦ КОНТЕКСТА ===\n\n" +
+
+                "ВОПРОС: " + userQuestion + "\n\n" +
+                "ОТВЕТ:";
+    }
+
+    private String buildBookQuestionPrompt(String context, String question, String bookTitle) {
+        return String.format(
+                "Ты отвечаешь на вопрос по книге '%s'. Используй только информацию из предоставленного контекста.\n\n" +
+                        "КОНТЕКСТ:\n%s\n\n" +
+                        "ВОПРОС: %s\n\n" +
+                        "Дай точный ответ, основанный только на контексте:",
+                bookTitle, context, question);
+    }
+
+    private String buildSummaryPrompt(String context, String bookTitle) {
+        return String.format(
+                "На основе следующих фрагментов из книги '%s', создай структурированное краткое содержание:\n\n" +
+                        "ФРАГМЕНТЫ:\n%s\n\n" +
+                        "Создай краткое содержание, включающее:\n" +
+                        "1. Основные темы\n" +
+                        "2. Ключевые идеи\n" +
+                        "3. Важные выводы\n" +
+                        "4. Структуру материала",
+                bookTitle, context);
+    }
+
+    /**
      * Отправка запроса к AI API
      */
     private String sendAIRequest(String systemPrompt, String userMessage, String context, Resource file)
             throws Exception {
-
         if ("openrouter".equals(apiProvider)) {
             return sendOpenRouterRequest(systemPrompt, userMessage, context, file);
         } else if ("gemini".equals(apiProvider)) {
@@ -147,55 +321,28 @@ public class AIService {
     /**
      * Отправка запроса к OpenRouter API
      */
-    private String sendOpenRouterRequest(String systemPrompt, String userMessage, String context, Resource file)
-            throws Exception {
-
+    private String sendOpenRouterRequest(String systemPrompt, String userMessage, String context, Resource file) throws Exception {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(apiKey);
-        headers.set("HTTP-Referer", "https://localhost:8080");
+        headers.set("HTTP-Referer", "http://localhost:8080");
         headers.set("X-Title", "Student Helper Bot");
 
-        // Формируем сообщения
         List<Map<String, Object>> messages = new ArrayList<>();
 
-        // Системное сообщение
         Map<String, Object> systemMessage = new HashMap<>();
         systemMessage.put("role", "system");
-        systemMessage.put("content", systemPrompt + (context != null ? "\n\nКонтекст: " + context : ""));
+        systemMessage.put("content", systemPrompt);
         messages.add(systemMessage);
 
-        // Пользовательское сообщение
-        Map<String, Object> userMsg = new HashMap<>();
-        userMsg.put("role", "user");
-
-        if (file != null) {
-            List<Map<String, Object>> contentList = new ArrayList<>();
-
-            // Текстовая часть
-            Map<String, Object> textContent = new HashMap<>();
-            textContent.put("type", "text");
-            textContent.put("text", userMessage);
-            contentList.add(textContent);
-
-            // Файл — кодируем в base64
-            byte[] fileBytes = file.getInputStream().readAllBytes();
-            String base64File = Base64.getEncoder().encodeToString(fileBytes);
-
-            Map<String, Object> fileContent = new HashMap<>();
-            fileContent.put("type", "file");
-            // Например, для PDF:
-            fileContent.put("file", "data:application/pdf;base64," + base64File);
-            contentList.add(fileContent);
-
-            // ВАЖНО: content для мультимодальных сообщений — это List
-            userMsg.put("content", contentList);
-        } else {
+        // Если userMessage не пустой, добавляем его
+        if (userMessage != null && !userMessage.isEmpty()) {
+            Map<String, Object> userMsg = new HashMap<>();
+            userMsg.put("role", "user");
             userMsg.put("content", userMessage);
+            messages.add(userMsg);
         }
-        messages.add(userMsg);
 
-        // Тело запроса
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", openRouterModel);
         requestBody.put("messages", messages);
@@ -224,7 +371,6 @@ public class AIService {
      */
     private String sendGeminiRequest(String systemPrompt, String userMessage, String context, Resource file)
             throws Exception {
-
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -237,6 +383,7 @@ public class AIService {
         if (context != null) {
             fullPrompt += "\n\nКонтекст: " + context;
         }
+
         textPart.put("text", fullPrompt);
         parts.add(textPart);
 
@@ -271,7 +418,6 @@ public class AIService {
         requestBody.put("generationConfig", generationConfig);
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
         String url = String.format("%s/models/%s:generateContent?key=%s",
                 geminiBaseUrl, geminiModel, apiKey);
 
@@ -293,53 +439,15 @@ public class AIService {
     }
 
     /**
-     * Построение системного промпта
-     */
-    private String buildSystemPrompt() {
-        return "Ты - умный помощник для студентов. Отвечай на русском языке четко и полезно. " +
-                "Если не знаешь ответа, честно скажи об этом. " +
-                "При работе с документами ссылайся на их содержимое.";
-    }
-
-    /**
-     * Построение контекста пользователя
-     */
-    private String buildUserContext(Long userId, String currentMessage) {
-        StringBuilder context = new StringBuilder();
-        try {
-            // Добавляем информацию о пользователе
-            var user = userService.getUserByTelegramId(userId);
-            if (user.isPresent()) {
-                context.append("Пользователь: ").append(user.get().getFirstName()).append("\n");
-            }
-
-            // Добавляем информацию о доступных книгах
-            var userBooks = bookService.getUserBooks(userId);
-            if (!userBooks.isEmpty()) {
-                context.append("Доступные материалы:\n");
-                userBooks.forEach(book ->
-                        context.append("- ").append(book.getTitle()).append("\n")
-                );
-            }
-
-        } catch (Exception e) {
-            logger.warn("Не удалось построить контекст пользователя: {}", e.getMessage());
-        }
-        return context.toString();
-    }
-
-    /**
      * Проверка доступности AI API
      */
     public boolean isAIServiceAvailable() {
         try {
-            // Простая проверка доступности API
             if ("openrouter".equals(apiProvider)) {
                 String testUrl = openRouterBaseUrl + "/models";
                 HttpHeaders headers = new HttpHeaders();
                 headers.setBearerAuth(apiKey);
-                HttpEntity<?> entity = new HttpEntity<>(headers);
-
+                HttpEntity<Map<String, Object>> entity = new HttpEntity<>(headers);
                 ResponseEntity<String> response = restTemplate.exchange(
                         testUrl, HttpMethod.GET, entity, String.class);
                 return response.getStatusCode().is2xxSuccessful();

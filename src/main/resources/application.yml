@@ -75,7 +75,7 @@ ai:
   # OpenRouter settings
   openrouter:
     base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
-    model: ${OPENROUTER_MODEL:google/gemini-2.0-flash-exp:free}
+    model: ${OPENROUTER_MODEL:deepseek/deepseek-r1-0528:free}
 
   # Gemini settings
   gemini:
@@ -86,10 +86,28 @@ ai:
   max-tokens: ${AI_MAX_TOKENS:2000}
   temperature: ${AI_TEMPERATURE:0.7}
 
+  # RAG settings
+  rag:
+    max-context-length: ${AI_RAG_MAX_CONTEXT:3000} # Максимальная длина контекста для RAG
+    max-chunks: ${AI_RAG_MAX_CHUNKS:5} # Максимальное количество чанков для контекста
+
+# Qdrant Vector Database Configuration (REST API)
+qdrant:
+  host: ${QDRANT_HOST:localhost}
+  port: ${QDRANT_PORT:6333} # REST API порт (НЕ gRPC!)
+  api-key: ${QDRANT_API_KEY:} # Опциональный API ключ для аутентификации
+  collection:
+    name: "user_books_collection"
+  vector:
+    size: ${QDRANT_VECTOR_SIZE:1536} # Размерность векторов (зависит от embedding модели)
+  search:
+    limit: ${QDRANT_SEARCH_LIMIT:5} # Максимальное количество результатов поиска
+    score_threshold: ${QDRANT_SCORE_THRESHOLD:0.7} # Минимальный порог релевантности
+
 # Channel Subscription Configuration
 channel:
-  required: ${CHANNEL_REQUIRED:@chota_study}  # Канал для обязательной подписки FREE пользователей
-  enabled: ${CHANNEL_CHECK_ENABLED:true}      # Включить/выключить проверку подписки
+  required: ${CHANNEL_REQUIRED:@chota_study} # Канал для обязательной подписки FREE пользователей
+  enabled: ${CHANNEL_CHECK_ENABLED:true} # Включить/выключить проверку подписки
 
 # Subscription Configuration
 subscription:
@@ -128,7 +146,6 @@ security:
   jwt:
     secret: ${JWT_SECRET:your-secret-key-change-in-production}
     expiration: ${JWT_EXPIRATION:86400} # 24 hours
-
   rate-limiting:
     enabled: ${RATE_LIMITING_ENABLED:true}
     requests-per-minute: 60
@@ -141,6 +158,7 @@ logging:
     org.springframework: WARN
     org.hibernate: WARN
     org.telegram: WARN
+    org.springframework.web.reactive.function.client: DEBUG # Включаем отладку для WebClient
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n"
@@ -183,6 +201,7 @@ features:
   ai:
     enabled: true
     multi-model: true
+    rag: true # Включение RAG функциональности
   analytics:
     enabled: ${ANALYTICS_ENABLED:false}
     service: ${ANALYTICS_SERVICE:google}

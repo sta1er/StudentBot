@@ -21,13 +21,15 @@ public class BookService {
 
     private final BookMetadataRepository bookMetadataRepository;
     private final MinioClient minioClient;
+    private final IndexingService indexingService;
 
     @Value("${minio.buckets.books:books}")
     private String booksBucket;
 
-    public BookService(BookMetadataRepository bookMetadataRepository, MinioClient minioClient) {
+    public BookService(BookMetadataRepository bookMetadataRepository, MinioClient minioClient, IndexingService indexingService) {
         this.bookMetadataRepository = bookMetadataRepository;
         this.minioClient = minioClient;
+        this.indexingService = indexingService;
     }
 
     @PostConstruct
@@ -67,12 +69,18 @@ public class BookService {
             // Генерируем уникальное имя файла для избежания конфликтов
             String uniqueFileName = generateUniqueFileName(fileName, userId);
 
+            // Создаем копии потока, т.к. его можно прочитать только один раз
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            fileStream.transferTo(baos);
+            InputStream firstStream = new ByteArrayInputStream(baos.toByteArray());
+            InputStream secondStream = new ByteArrayInputStream(baos.toByteArray());
+
             // Сохраняем в MinIO
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(booksBucket)
                             .object(uniqueFileName)
-                            .stream(fileStream, fileSize, -1)
+                            .stream(firstStream, baos.size(), -1)
                             .contentType(contentType)
                             .build()
             );
@@ -83,11 +91,15 @@ public class BookService {
             book.setFileName(uniqueFileName);
             book.setMinioPath(booksBucket + "/" + uniqueFileName);
             book.setFileType(contentType);
-            book.setFileSize(fileSize);
+            book.setFileSize((long) baos.size());
             book.setUploadedBy(userId);
 
             BookMetadata savedBook = bookMetadataRepository.save(book);
             logger.info("Документ {} успешно загружен пользователем {}", fileName, userId);
+
+            // Асинхронно запускаем индексацию
+            indexingService.processAndIndexBook(savedBook, secondStream);
+
             return savedBook;
 
         } catch (Exception e) {

@@ -46,41 +46,42 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin123
     ports:
       - "9000:9000"
-      - "9001:9001"
+      - "9090:9090"
     volumes:
       - minio_data:/data
     networks:
       - student-bot-network
-    command: server /data --console-address ":9001"
+    command: server /data --console-address ":9090"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
       timeout: 20s
       retries: 3
 
-  # MinIO Client для создания bucket
-  minio-setup:
-    image: minio/mc:latest
-    container_name: student-bot-minio-setup
-    depends_on:
-      minio:
-        condition: service_healthy
+  # Qdrant Vector Database (REST API)
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: student-bot-qdrant
+    ports:
+      - "6333:6333"   # REST API порт
+      - "6334:6334"   # gRPC порт (не используется, но оставляем для совместимости)
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      # Конфигурация Qdrant
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      # Включаем CORS для веб-интерфейса (опционально)
+      QDRANT__SERVICE__ENABLE_CORS: true
     networks:
       - student-bot-network
-    entrypoint: >
-      /bin/sh -c "
-      until mc alias set minio http://minio:9000 minioadmin minioadmin123; do
-        echo 'Waiting for MinIO to be ready...';
-        sleep 1;
-      done;
-      mc mb minio/books --ignore-existing;
-      mc mb minio/documents --ignore-existing;
-      mc anonymous set public minio/books;
-      mc anonymous set public minio/documents;
-      echo 'MinIO setup completed';
-      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
-  # Main Spring Boot Application with Mini App
+  # Student Bot Application
   student-bot:
     build:
       context: .
@@ -88,107 +89,48 @@ services:
     container_name: student-bot-app
     ports:
       - "8080:8080"
-      - "80:80"
+    environment:
+      # Database
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/studentbot
+      SPRING_DATASOURCE_USERNAME: studentbot
+      SPRING_DATASOURCE_PASSWORD: studentbot123
+
+      # MinIO
+      MINIO_URL: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+
+      # Qdrant (REST API)
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      QDRANT_VECTOR_SIZE: 1536
+
+      # Telegram Bot (нужно задать переменные окружения)
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+
+      # AI API
+      AI_API_PROVIDER: openrouter
+      AI_API_KEY: ${AI_API_KEY}
+      OPENROUTER_MODEL: deepseek/deepseek-r1-0528:free
+
+      # Redis (опционально)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_ENABLED: false
+
     depends_on:
       postgres:
+        condition: service_healthy
+      qdrant:
         condition: service_healthy
       minio:
         condition: service_healthy
     networks:
       - student-bot-network
-    environment:
-      # Database
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/studentbot
-      - SPRING_DATASOURCE_USERNAME=studentbot
-      - SPRING_DATASOURCE_PASSWORD=studentbot123
-
-      # MinIO
-      - MINIO_URL=http://minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin123
-
-      # Redis
-      - REDIS_ENABLED=true
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-
-      # Telegram
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME}
-
-      # Mini App
-      - MINIAPP_URL=${MINIAPP_URL:-https://localhost/miniapp}
-
-      # AI
-      - AI_API_PROVIDER=${AI_API_PROVIDER:-openrouter}
-      - AI_API_KEY=${AI_API_KEY}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
-
-      # Features
-      - PAYMENT_ENABLED=${PAYMENT_ENABLED:-false}
-      - ANALYTICS_ENABLED=${ANALYTICS_ENABLED:-false}
-      - RATE_LIMITING_ENABLED=true
-      - VIRUS_SCAN_ENABLED=false
-
-      # Security
-      - JWT_SECRET=${JWT_SECRET:-change-this-in-production}
-
     volumes:
-      - ./logs:/app/logs
-      - ./miniapp:/app/miniapp:ro  # Mini App файлы только для чтения
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  # Nginx Load Balancer (для масштабирования)
-  nginx-lb:
-    image: nginx:alpine
-    container_name: student-bot-nginx
-    ports:
-      - "443:443"
-    depends_on:
-      - student-bot
-    networks:
-      - student-bot-network
-    volumes:
-      - ./nginx-lb.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro  # SSL сертификаты
-    profiles:
-      - production  # Только для продакшн-среды
-
-  # Monitoring (Prometheus + Grafana)
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: student-bot-prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    networks:
-      - student-bot-network
-    profiles:
-      - monitoring
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: student-bot-grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./monitoring/grafana-datasources:/etc/grafana/provisioning/datasources:ro
-    networks:
-      - student-bot-network
-    profiles:
-      - monitoring
+      - app_logs:/app/logs
+    restart: unless-stopped
 
 volumes:
   postgres_data:
@@ -197,9 +139,9 @@ volumes:
     driver: local
   minio_data:
     driver: local
-  prometheus_data:
+  qdrant_data:
     driver: local
-  grafana_data:
+  app_logs:
     driver: local
 
 networks:
