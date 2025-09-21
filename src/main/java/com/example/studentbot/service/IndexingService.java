@@ -29,8 +29,8 @@ public class IndexingService {
     private static final Logger logger = LoggerFactory.getLogger(IndexingService.class);
 
     private final EmbeddingService embeddingService;
-    private final WebClient webClient;
     private final ObjectMapper objectMapper;
+    private WebClient webClient;
 
     @Value("${qdrant.host:localhost}")
     private String qdrantHost;
@@ -55,15 +55,18 @@ public class IndexingService {
     public IndexingService(EmbeddingService embeddingService, ObjectMapper objectMapper) {
         this.embeddingService = embeddingService;
         this.objectMapper = objectMapper;
-        this.webClient = WebClient.builder()
-                .baseUrl(String.format("http://%s:%d", qdrantHost, qdrantPort))
-                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .build();
     }
 
     @PostConstruct
     public void initializeCollection() {
         try {
+            this.webClient = WebClient.builder()
+                    .baseUrl(String.format("http://%s:%d", qdrantHost, qdrantPort))
+                    .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .build();
+
+            logger.info("WebClient создан для Qdrant: http://{}:{}", qdrantHost, qdrantPort);
+
             // Проверяем существование коллекции
             CompletableFuture<Boolean> collectionExists = checkCollectionExists();
 
@@ -77,7 +80,7 @@ public class IndexingService {
             }
         } catch (Exception e) {
             logger.error("Ошибка при инициализации коллекции Qdrant: {}", e.getMessage(), e);
-            throw new RuntimeException("Не удалось инициализировать векторную базу данных", e);
+            logger.warn("Приложение будет запущено без векторной базы данных. Qdrant может быть недоступен.");
         }
     }
 
@@ -118,6 +121,12 @@ public class IndexingService {
 
     @Async
     public void processAndIndexBook(BookMetadata metadata, InputStream bookStream) {
+        // ДОБАВЛЕНО: проверяем, что WebClient инициализирован
+        if (webClient == null) {
+            logger.error("WebClient не инициализирован. Индексация книги ID: {} пропущена", metadata.getId());
+            return;
+        }
+
         long startTime = System.currentTimeMillis();
         logger.info("Начало индексации книги ID: {} типа: {}", metadata.getId(), metadata.getFileType());
 
@@ -140,7 +149,7 @@ public class IndexingService {
             for (int i = 0; i < chunks.size(); i++) {
                 String chunk = chunks.get(i);
                 try {
-                    float[] vector = embeddingService.getEmbedding(chunk);
+                    float[] vector = embeddingService.getEmbedding(chunk); // ИСПРАВЛЕНО: используем embeddingService
                     if (vector.length != vectorSize) {
                         logger.warn("Размерность вектора {} не соответствует ожидаемой {}", vector.length, vectorSize);
                         continue;
