@@ -89,6 +89,7 @@ services:
     container_name: student-bot-app
     ports:
       - "8080:8080"
+      - "80:80"
     environment:
       # Database
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/studentbot
