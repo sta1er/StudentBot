@@ -50,9 +50,6 @@ dependencies {
 
     // Apache Commons IO для вспомогательных классов
     implementation("commons-io:commons-io:2.15.1")
-
-    // Async processing
-    implementation("org.springframework.boot:spring-boot-starter-async")
 }
 
 tasks.withType<Test> {
