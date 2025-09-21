@@ -109,6 +109,9 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
 
+      # Mini App
+      MINIAPP_URL: ${MINIAPP_URL:-https://localhost/miniapp}
+
       # AI API
       AI_API_PROVIDER: openrouter
       AI_API_KEY: ${AI_API_KEY}
@@ -130,7 +133,24 @@ services:
       - student-bot-network
     volumes:
       - app_logs:/app/logs
+      - ./miniapp:/app/miniapp:ro  # Mini App файлы только для чтения
     restart: unless-stopped
+
+  # Nginx Load Balancer (для масштабирования)
+  nginx-lb:
+    image: nginx:alpine
+    container_name: student-bot-nginx
+    ports:
+      - "443:443"
+    depends_on:
+      - student-bot
+    networks:
+      - student-bot-network
+    volumes:
+      - ./nginx-lb.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro  # SSL сертификаты
+    profiles:
+      - production  # Только для продакшн-среды
 
 volumes:
   postgres_data:
