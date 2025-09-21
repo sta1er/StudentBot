@@ -46,17 +46,39 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin123
     ports:
       - "9000:9000"
-      - "9090:9090"
+      - "9001:9001"
     volumes:
       - minio_data:/data
     networks:
       - student-bot-network
-    command: server /data --console-address ":9090"
+    command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 30s
       timeout: 20s
       retries: 3
+
+  # MinIO Client для создания bucket
+  minio-setup:
+    image: minio/mc:latest
+    container_name: student-bot-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - student-bot-network
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set minio http://minio:9000 minioadmin minioadmin123; do
+        echo 'Waiting for MinIO to be ready...';
+        sleep 1;
+      done;
+      mc mb minio/books --ignore-existing;
+      mc mb minio/documents --ignore-existing;
+      mc anonymous set public minio/books;
+      mc anonymous set public minio/documents;
+      echo 'MinIO setup completed';
+      "
 
   # Qdrant Vector Database (REST API)
   qdrant:
