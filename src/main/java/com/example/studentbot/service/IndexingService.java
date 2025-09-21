@@ -14,7 +14,6 @@ import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
 import javax.annotation.PostConstruct;
 import java.io.BufferedReader;
@@ -25,14 +24,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * Сервис индексации с использованием Qdrant REST API
- */
 @Service
 public class IndexingService {
     private static final Logger logger = LoggerFactory.getLogger(IndexingService.class);
 
-    private final AIService aiService;
+    private final EmbeddingService embeddingService;
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
 
@@ -52,12 +48,12 @@ public class IndexingService {
     private String apiKey;
 
     // Оптимизированные размеры чанков
-    private static final int CHUNK_SIZE = 200; // Уменьшено для лучшей векторизации
+    private static final int CHUNK_SIZE = 200;
     private static final int CHUNK_OVERLAP = 50;
-    private static final int MAX_CHUNK_LENGTH = 500; // Максимальная длина чанка в символах
+    private static final int MAX_CHUNK_LENGTH = 500;
 
-    public IndexingService(AIService aiService, ObjectMapper objectMapper) {
-        this.aiService = aiService;
+    public IndexingService(EmbeddingService embeddingService, ObjectMapper objectMapper) {
+        this.embeddingService = embeddingService;
         this.objectMapper = objectMapper;
         this.webClient = WebClient.builder()
                 .baseUrl(String.format("http://%s:%d", qdrantHost, qdrantPort))
@@ -144,7 +140,7 @@ public class IndexingService {
             for (int i = 0; i < chunks.size(); i++) {
                 String chunk = chunks.get(i);
                 try {
-                    float[] vector = aiService.getEmbedding(chunk);
+                    float[] vector = embeddingService.getEmbedding(chunk);
                     if (vector.length != vectorSize) {
                         logger.warn("Размерность вектора {} не соответствует ожидаемой {}", vector.length, vectorSize);
                         continue;

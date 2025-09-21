@@ -15,9 +15,6 @@ import org.springframework.core.io.Resource;
 import java.io.IOException;
 import java.util.*;
 
-/**
- * Улучшенный сервис для работы с AI API с поддержкой RAG
- */
 @Service
 public class AIService {
     private static final Logger logger = LoggerFactory.getLogger(AIService.class);
@@ -55,17 +52,17 @@ public class AIService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
     private final UserService userService;
-    private final BookService bookService;
     private final VectorSearchService vectorSearchService;
+    private final EmbeddingService embeddingService;
 
     public AIService(RestTemplate restTemplate, ObjectMapper objectMapper,
-                     UserService userService, BookService bookService,
-                     VectorSearchService vectorSearchService) {
+                     UserService userService, VectorSearchService vectorSearchService,
+                     EmbeddingService embeddingService) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
         this.userService = userService;
-        this.bookService = bookService;
         this.vectorSearchService = vectorSearchService;
+        this.embeddingService = embeddingService;
     }
 
     /**
@@ -76,7 +73,7 @@ public class AIService {
             logger.info("Обработка RAG-запроса от пользователя {}: {}", userId,
                     message.length() > 50 ? message.substring(0, 50) + "..." : message);
 
-            float[] queryVector = getEmbedding(message);
+            float[] queryVector = embeddingService.getEmbedding(message);
             List<String> relevantChunks = vectorSearchService.findRelevantChunks(userId, queryVector);
 
             if (relevantChunks.isEmpty()) {
@@ -98,6 +95,67 @@ public class AIService {
         } catch (Exception e) {
             logger.error("Ошибка при обработке RAG-сообщения: {}", e.getMessage(), e);
             return "Извините, произошла ошибка при обработке вашего запроса. Попробуйте еще раз.";
+        }
+    }
+
+    /**
+     * Обработка вопроса по конкретной книге
+     */
+    public String processBookQuestion(String question, Long bookId, Long userId, String bookTitle, Resource bookFile) {
+        try {
+            logger.info("Обработка вопроса по книге {} от пользователя {}", bookId, userId);
+
+            // Сначала пробуем найти ответ в векторной базе
+            float[] queryVector = embeddingService.getEmbedding(question);
+            List<String> relevantChunks = vectorSearchService.findRelevantChunksInBook(userId, bookId, queryVector);
+
+            if (!relevantChunks.isEmpty()) {
+                String context = optimizeContext(relevantChunks);
+                String augmentedPrompt = buildBookQuestionPrompt(context, question, bookTitle);
+                return sendAIRequest(augmentedPrompt, "", null, null);
+            }
+
+            // Если в векторной базе нет данных, пробуем работать с файлом напрямую
+            logger.debug("Векторные данные не найдены, пробуем работать с файлом напрямую");
+
+            String systemPrompt = String.format(
+                    "Ты помощник для студентов. Отвечай на вопросы по загруженному документу '%s'. " +
+                            "Будь конкретным и ссылайся на содержимое документа.", bookTitle);
+
+            return sendAIRequest(systemPrompt, question, null, bookFile);
+
+        } catch (Exception e) {
+            logger.error("Ошибка при обработке вопроса по книге: {}", e.getMessage(), e);
+            return "К сожалению, не удалось найти ответ в указанной книге.";
+        }
+    }
+
+    /**
+     * Генерация краткого содержания книги
+     */
+    public String generateBookSummary(Long bookId, Long userId, String bookTitle, Resource bookFile) {
+        try {
+            // Пробуем собрать краткое содержание из векторных данных
+            String summaryQuery = "основные темы ключевые идеи выводы содержание";
+            float[] queryVector = embeddingService.getEmbedding(summaryQuery);
+            List<String> relevantChunks = vectorSearchService.findRelevantChunksInBook(userId, bookId, queryVector);
+
+            if (!relevantChunks.isEmpty()) {
+                String context = optimizeContext(relevantChunks);
+                String prompt = buildSummaryPrompt(context, bookTitle);
+                return sendAIRequest(prompt, "", null, null);
+            }
+
+            // Если векторных данных нет, работаем с файлом
+            String systemPrompt = "Создай структурированное краткое содержание загруженного документа. " +
+                    "Выдели основные темы, ключевые идеи и выводы.";
+            String userPrompt = String.format("Создай краткое содержание документа '%s'", bookTitle);
+
+            return sendAIRequest(systemPrompt, userPrompt, null, bookFile);
+
+        } catch (Exception e) {
+            logger.error("Ошибка при генерации краткого содержания: {}", e.getMessage(), e);
+            return "Не удалось создать краткое содержание книги.";
         }
     }
 
@@ -142,123 +200,6 @@ public class AIService {
                 chunksUsed, chunks.size(), context.length());
 
         return context.toString();
-    }
-
-    /**
-     * Получение векторного представления для текста
-     */
-    public float[] getEmbedding(String text) throws Exception {
-        if (text == null || text.trim().isEmpty()) {
-            throw new IllegalArgumentException("Текст для векторизации не может быть пустым");
-        }
-
-        // Обрезаем текст если он слишком длинный для embedding модели
-        String truncatedText = text.length() > 8000 ? text.substring(0, 8000) : text;
-
-        String embeddingModel = "openai/text-embedding-3-small";
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(apiKey);
-        headers.set("HTTP-Referer", "http://localhost:8080");
-        headers.set("X-Title", "Student Helper Bot");
-
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", embeddingModel);
-        requestBody.put("input", truncatedText);
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-        String url = openRouterBaseUrl + "/embeddings";
-
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
-
-        if (response.getStatusCode().is2xxSuccessful()) {
-            JsonNode jsonResponse = objectMapper.readTree(response.getBody());
-            JsonNode embeddingNode = jsonResponse.get("data").get(0).get("embedding");
-
-            float[] vector = new float[embeddingNode.size()];
-            for (int i = 0; i < embeddingNode.size(); i++) {
-                vector[i] = embeddingNode.get(i).floatValue();
-            }
-
-            logger.debug("Получен вектор размерности {} для текста длиной {} символов",
-                    vector.length, truncatedText.length());
-
-            return vector;
-        } else {
-            String errorMsg = "OpenRouter Embedding API error: " + response.getStatusCode();
-            if (response.getBody() != null) {
-                errorMsg += " - " + response.getBody();
-            }
-            throw new RuntimeException(errorMsg);
-        }
-    }
-
-    /**
-     * Обработка вопроса по конкретной книге
-     */
-    public String processBookQuestion(String question, Long bookId, Long userId) {
-        try {
-            logger.info("Обработка вопроса по книге {} от пользователя {}", bookId, userId);
-
-            // Сначала пробуем найти ответ в векторной базе
-            float[] queryVector = getEmbedding(question);
-            List<String> relevantChunks = vectorSearchService.findRelevantChunksInBook(userId, bookId, queryVector);
-
-            if (!relevantChunks.isEmpty()) {
-                String context = optimizeContext(relevantChunks);
-                String bookTitle = bookService.getBookTitle(bookId);
-                String augmentedPrompt = buildBookQuestionPrompt(context, question, bookTitle);
-                return sendAIRequest(augmentedPrompt, "", null, null);
-            }
-
-            // Если в векторной базе нет данных, пробуем работать с файлом напрямую
-            logger.debug("Векторные данные не найдены, пробуем работать с файлом напрямую");
-            Resource bookFile = bookService.getBookFile(bookId);
-            String bookTitle = bookService.getBookTitle(bookId);
-
-            String systemPrompt = String.format(
-                    "Ты помощник для студентов. Отвечай на вопросы по загруженному документу '%s'. " +
-                            "Будь конкретным и ссылайся на содержимое документа.", bookTitle);
-
-            return sendAIRequest(systemPrompt, question, null, bookFile);
-
-        } catch (Exception e) {
-            logger.error("Ошибка при обработке вопроса по книге: {}", e.getMessage(), e);
-            return "К сожалению, не удалось найти ответ в указанной книге.";
-        }
-    }
-
-    /**
-     * Генерация краткого содержания книги
-     */
-    public String generateBookSummary(Long bookId, Long userId) {
-        try {
-            // Пробуем собрать краткое содержание из векторных данных
-            String summaryQuery = "основные темы ключевые идеи выводы содержание";
-            float[] queryVector = getEmbedding(summaryQuery);
-            List<String> relevantChunks = vectorSearchService.findRelevantChunksInBook(userId, bookId, queryVector);
-
-            String bookTitle = bookService.getBookTitle(bookId);
-
-            if (!relevantChunks.isEmpty()) {
-                String context = optimizeContext(relevantChunks);
-                String prompt = buildSummaryPrompt(context, bookTitle);
-                return sendAIRequest(prompt, "", null, null);
-            }
-
-            // Если векторных данных нет, работаем с файлом
-            Resource bookFile = bookService.getBookFile(bookId);
-            String systemPrompt = "Создай структурированное краткое содержание загруженного документа. " +
-                    "Выдели основные темы, ключевые идеи и выводы.";
-            String userPrompt = String.format("Создай краткое содержание документа '%s'", bookTitle);
-
-            return sendAIRequest(systemPrompt, userPrompt, null, bookFile);
-
-        } catch (Exception e) {
-            logger.error("Ошибка при генерации краткого содержания: {}", e.getMessage(), e);
-            return "Не удалось создать краткое содержание книги.";
-        }
     }
 
     /**
