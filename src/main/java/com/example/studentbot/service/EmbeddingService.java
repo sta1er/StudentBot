@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -19,11 +20,42 @@ public class EmbeddingService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    @Value("${ai.api.key}")
-    private String apiKey;
+    // Провайдер embedding (gemini, openai, huggingface)
+    @Value("${embedding.provider:gemini}")
+    private String embeddingProvider;
 
-    @Value("${ai.openrouter.base-url:https://openrouter.ai/api/v1}")
-    private String openRouterBaseUrl;
+    // Gemini Embedding настройки
+    @Value("${embedding.gemini.api-key:}")
+    private String geminiApiKey;
+
+    @Value("${embedding.gemini.base-url:https://generativelanguage.googleapis.com/v1beta}")
+    private String geminiBaseUrl;
+
+    @Value("${embedding.gemini.model:models/text-embedding-004}")
+    private String geminiModel;
+
+    @Value("${embedding.gemini.task-type:RETRIEVAL_DOCUMENT}")
+    private String geminiTaskType;
+
+    // OpenAI Embedding настройки (альтернатива)
+    @Value("${embedding.openai.api-key:}")
+    private String openaiApiKey;
+
+    @Value("${embedding.openai.base-url:https://api.openai.com/v1}")
+    private String openaiBaseUrl;
+
+    @Value("${embedding.openai.model:text-embedding-3-small}")
+    private String openaiModel;
+
+    // HuggingFace Embedding настройки (бесплатная альтернатива)
+    @Value("${embedding.huggingface.api-key:}")
+    private String huggingfaceApiKey;
+
+    @Value("${embedding.huggingface.base-url:https://api-inference.huggingface.co}")
+    private String huggingfaceBaseUrl;
+
+    @Value("${embedding.huggingface.model:sentence-transformers/all-MiniLM-L6-v2}")
+    private String huggingfaceModel;
 
     public EmbeddingService(RestTemplate restTemplate, ObjectMapper objectMapper) {
         this.restTemplate = restTemplate;
@@ -32,29 +64,105 @@ public class EmbeddingService {
 
     /**
      * Получение векторного представления для текста
+     * Автоматически выбирает провайдера на основе конфигурации
      */
     public float[] getEmbedding(String text) throws Exception {
         if (text == null || text.trim().isEmpty()) {
             throw new IllegalArgumentException("Текст для векторизации не может быть пустым");
         }
 
-        // Обрезаем текст если он слишком длинный для embedding модели
+        // Обрезаем текст если он слишком длинный
         String truncatedText = text.length() > 8000 ? text.substring(0, 8000) : text;
 
-        String embeddingModel = "openai/text-embedding-3-small";
+        logger.debug("Получение embedding через провайдера: {} для текста длиной {} символов",
+                embeddingProvider, truncatedText.length());
+
+        switch (embeddingProvider.toLowerCase()) {
+            case "gemini":
+                return getGeminiEmbedding(truncatedText);
+            case "openai":
+                return getOpenAIEmbedding(truncatedText);
+            case "huggingface":
+                return getHuggingFaceEmbedding(truncatedText);
+            default:
+                throw new IllegalArgumentException("Неподдерживаемый провайдер embedding: " + embeddingProvider);
+        }
+    }
+
+    /**
+     * Получение embedding через Google Gemini API
+     */
+    private float[] getGeminiEmbedding(String text) throws Exception {
+        if (geminiApiKey == null || geminiApiKey.trim().isEmpty()) {
+            throw new RuntimeException("Gemini API ключ не настроен. Задайте GEMINI_EMBEDDING_API_KEY");
+        }
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(apiKey);
-        headers.set("HTTP-Referer", "http://localhost:8080");
-        headers.set("X-Title", "Student Helper Bot");
 
         Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", embeddingModel);
-        requestBody.put("input", truncatedText);
+        requestBody.put("model", geminiModel);
+
+        Map<String, Object> content = new HashMap<>();
+        content.put("parts", List.of(Map.of("text", text)));
+        requestBody.put("content", content);
+
+        // Добавляем task_type для лучшего качества embedding
+        requestBody.put("task_type", geminiTaskType);
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-        String url = openRouterBaseUrl + "/embeddings";
+
+        String url = String.format("%s/%s:embedContent?key=%s",
+                geminiBaseUrl, geminiModel, geminiApiKey);
+
+        logger.debug("Отправка запроса к Gemini API: {}", url.replaceAll("key=.*", "key=***"));
+
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+
+        if (response.getStatusCode().is2xxSuccessful()) {
+            JsonNode jsonResponse = objectMapper.readTree(response.getBody());
+            JsonNode embeddingNode = jsonResponse.get("embedding").get("values");
+
+            if (embeddingNode == null || !embeddingNode.isArray()) {
+                throw new RuntimeException("Неожиданный формат ответа от Gemini API");
+            }
+
+            float[] vector = new float[embeddingNode.size()];
+            for (int i = 0; i < embeddingNode.size(); i++) {
+                vector[i] = embeddingNode.get(i).floatValue();
+            }
+
+            logger.debug("Получен Gemini вектор размерности {} для текста длиной {} символов",
+                    vector.length, text.length());
+
+            return vector;
+        } else {
+            String errorMsg = "Gemini Embedding API error: " + response.getStatusCode();
+            if (response.getBody() != null) {
+                errorMsg += " - " + response.getBody();
+            }
+            throw new RuntimeException(errorMsg);
+        }
+    }
+
+    /**
+     * Получение embedding через OpenAI API (альтернативный метод)
+     */
+    private float[] getOpenAIEmbedding(String text) throws Exception {
+        if (openaiApiKey == null || openaiApiKey.trim().isEmpty()) {
+            throw new RuntimeException("OpenAI API ключ не настроен. Задайте OPENAI_EMBEDDING_API_KEY");
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(openaiApiKey);
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", openaiModel);
+        requestBody.put("input", text);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        String url = openaiBaseUrl + "/embeddings";
 
         ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
 
@@ -67,16 +175,101 @@ public class EmbeddingService {
                 vector[i] = embeddingNode.get(i).floatValue();
             }
 
-            logger.debug("Получен вектор размерности {} для текста длиной {} символов",
-                    vector.length, truncatedText.length());
+            logger.debug("Получен OpenAI вектор размерности {} для текста длиной {} символов",
+                    vector.length, text.length());
 
             return vector;
         } else {
-            String errorMsg = "OpenRouter Embedding API error: " + response.getStatusCode();
+            String errorMsg = "OpenAI Embedding API error: " + response.getStatusCode();
             if (response.getBody() != null) {
                 errorMsg += " - " + response.getBody();
             }
             throw new RuntimeException(errorMsg);
+        }
+    }
+
+    /**
+     * Получение embedding через HuggingFace API (бесплатная альтернатива)
+     */
+    private float[] getHuggingFaceEmbedding(String text) throws Exception {
+        if (huggingfaceApiKey == null || huggingfaceApiKey.trim().isEmpty()) {
+            throw new RuntimeException("HuggingFace API ключ не настроен. Задайте HUGGINGFACE_API_KEY");
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(huggingfaceApiKey);
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("inputs", text);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        String url = huggingfaceBaseUrl + "/models/" + huggingfaceModel;
+
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+
+        if (response.getStatusCode().is2xxSuccessful()) {
+            JsonNode jsonResponse = objectMapper.readTree(response.getBody());
+
+            // HuggingFace возвращает массив векторов или один вектор
+            JsonNode vectorNode;
+            if (jsonResponse.isArray()) {
+                vectorNode = jsonResponse.get(0);
+            } else {
+                vectorNode = jsonResponse;
+            }
+
+            float[] vector = new float[vectorNode.size()];
+            for (int i = 0; i < vectorNode.size(); i++) {
+                vector[i] = vectorNode.get(i).floatValue();
+            }
+
+            logger.debug("Получен HuggingFace вектор размерности {} для текста длиной {} символов",
+                    vector.length, text.length());
+
+            return vector;
+        } else {
+            String errorMsg = "HuggingFace API error: " + response.getStatusCode();
+            if (response.getBody() != null) {
+                errorMsg += " - " + response.getBody();
+            }
+            throw new RuntimeException(errorMsg);
+        }
+    }
+
+    /**
+     * Проверка доступности embedding сервиса
+     */
+    public boolean isEmbeddingServiceAvailable() {
+        try {
+            // Тестируем с коротким текстом
+            float[] testVector = getEmbedding("test");
+            return testVector != null && testVector.length > 0;
+        } catch (Exception e) {
+            logger.warn("Embedding сервис недоступен: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Получение информации о размерности векторов текущего провайдера
+     */
+    public int getVectorDimensions() {
+        switch (embeddingProvider.toLowerCase()) {
+            case "gemini":
+                // text-embedding-004: 768 dimensions
+                // text-embedding-001: 768 dimensions
+                return 768;
+            case "openai":
+                // text-embedding-3-small: 1536 dimensions
+                // text-embedding-ada-002: 1536 dimensions
+                return 1536;
+            case "huggingface":
+                // all-MiniLM-L6-v2: 384 dimensions
+                // Другие модели могут иметь разные размерности
+                return 384;
+            default:
+                return 768; // По умолчанию для Gemini
         }
     }
 }

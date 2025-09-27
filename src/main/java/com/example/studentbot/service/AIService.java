@@ -7,8 +7,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.core.io.Resource;
 
@@ -19,34 +17,30 @@ import java.util.*;
 public class AIService {
     private static final Logger logger = LoggerFactory.getLogger(AIService.class);
 
-    @Value("${ai.api.provider:openrouter}")
-    private String apiProvider;
+    // OpenRouter настройки (только для языковых моделей)
+    @Value("${openrouter.enabled:true}")
+    private boolean openRouterEnabled;
 
-    @Value("${ai.api.key}")
-    private String apiKey;
+    @Value("${openrouter.api-key}")
+    private String openRouterApiKey;
 
-    @Value("${ai.openrouter.base-url:https://openrouter.ai/api/v1}")
+    @Value("${openrouter.base-url:https://openrouter.ai/api/v1}")
     private String openRouterBaseUrl;
 
-    @Value("${ai.openrouter.model:deepseek/deepseek-r1-0528:free}")
+    @Value("${openrouter.model:deepseek/deepseek-r1-0528:free}")
     private String openRouterModel;
 
-    @Value("${ai.gemini.base-url:https://generativelanguage.googleapis.com/v1beta}")
-    private String geminiBaseUrl;
-
-    @Value("${ai.gemini.model:gemini-2.5-flash}")
-    private String geminiModel;
-
-    @Value("${ai.max-tokens:2000}")
+    @Value("${openrouter.max-tokens:2000}")
     private int maxTokens;
 
-    @Value("${ai.temperature:0.7}")
+    @Value("${openrouter.temperature:0.7}")
     private double temperature;
 
-    @Value("${ai.rag.max-context-length:3000}")
+    // RAG настройки
+    @Value("${rag.max-context-length:3000}")
     private int maxContextLength;
 
-    @Value("${ai.rag.max-chunks:5}")
+    @Value("${rag.max-chunks:5}")
     private int maxChunks;
 
     private final RestTemplate restTemplate;
@@ -69,10 +63,15 @@ public class AIService {
      * Улучшенная обработка текстового сообщения с RAG
      */
     public String processTextMessage(String message, Long userId) {
+        if (!openRouterEnabled) {
+            return "AI сервис временно недоступен";
+        }
+
         try {
             logger.info("Обработка RAG-запроса от пользователя {}: {}", userId,
                     message.length() > 50 ? message.substring(0, 50) + "..." : message);
 
+            // Получаем embedding через новый EmbeddingService
             float[] queryVector = embeddingService.getEmbedding(message);
             List<String> relevantChunks = vectorSearchService.findRelevantChunks(userId, queryVector);
 
@@ -80,7 +79,7 @@ public class AIService {
                 logger.warn("Не найдено релевантных фрагментов для пользователя {}. Используем общие знания.", userId);
                 String fallbackPrompt = "Ты - умный помощник для студентов. Отвечай на русском языке четко и полезно. " +
                         "В материалах пользователя не найдено информации по этому вопросу, поэтому отвечай, используя свои общие знания.";
-                return sendAIRequest(fallbackPrompt, message, null, null);
+                return sendOpenRouterRequest(fallbackPrompt, message, null, null);
             }
 
             // Оптимизируем контекст по длине
@@ -90,7 +89,7 @@ public class AIService {
             logger.debug("Используется контекст длиной {} символов из {} фрагментов",
                     optimizedContext.length(), relevantChunks.size());
 
-            return sendAIRequest(augmentedPrompt, "", null, null);
+            return sendOpenRouterRequest(augmentedPrompt, "", null, null);
 
         } catch (Exception e) {
             logger.error("Ошибка при обработке RAG-сообщения: {}", e.getMessage(), e);
@@ -102,6 +101,10 @@ public class AIService {
      * Обработка вопроса по конкретной книге
      */
     public String processBookQuestion(String question, Long bookId, Long userId, String bookTitle, Resource bookFile) {
+        if (!openRouterEnabled) {
+            return "AI сервис временно недоступен";
+        }
+
         try {
             logger.info("Обработка вопроса по книге {} от пользователя {}", bookId, userId);
 
@@ -112,7 +115,7 @@ public class AIService {
             if (!relevantChunks.isEmpty()) {
                 String context = optimizeContext(relevantChunks);
                 String augmentedPrompt = buildBookQuestionPrompt(context, question, bookTitle);
-                return sendAIRequest(augmentedPrompt, "", null, null);
+                return sendOpenRouterRequest(augmentedPrompt, "", null, null);
             }
 
             // Если в векторной базе нет данных, пробуем работать с файлом напрямую
@@ -122,7 +125,7 @@ public class AIService {
                     "Ты помощник для студентов. Отвечай на вопросы по загруженному документу '%s'. " +
                             "Будь конкретным и ссылайся на содержимое документа.", bookTitle);
 
-            return sendAIRequest(systemPrompt, question, null, bookFile);
+            return sendOpenRouterRequest(systemPrompt, question, null, bookFile);
 
         } catch (Exception e) {
             logger.error("Ошибка при обработке вопроса по книге: {}", e.getMessage(), e);
@@ -134,6 +137,10 @@ public class AIService {
      * Генерация краткого содержания книги
      */
     public String generateBookSummary(Long bookId, Long userId, String bookTitle, Resource bookFile) {
+        if (!openRouterEnabled) {
+            return "AI сервис временно недоступен";
+        }
+
         try {
             // Пробуем собрать краткое содержание из векторных данных
             String summaryQuery = "основные темы ключевые идеи выводы содержание";
@@ -143,7 +150,7 @@ public class AIService {
             if (!relevantChunks.isEmpty()) {
                 String context = optimizeContext(relevantChunks);
                 String prompt = buildSummaryPrompt(context, bookTitle);
-                return sendAIRequest(prompt, "", null, null);
+                return sendOpenRouterRequest(prompt, "", null, null);
             }
 
             // Если векторных данных нет, работаем с файлом
@@ -151,7 +158,7 @@ public class AIService {
                     "Выдели основные темы, ключевые идеи и выводы.";
             String userPrompt = String.format("Создай краткое содержание документа '%s'", bookTitle);
 
-            return sendAIRequest(systemPrompt, userPrompt, null, bookFile);
+            return sendOpenRouterRequest(systemPrompt, userPrompt, null, bookFile);
 
         } catch (Exception e) {
             logger.error("Ошибка при генерации краткого содержания: {}", e.getMessage(), e);
@@ -160,7 +167,58 @@ public class AIService {
     }
 
     /**
-     * Оптимизация контекста по длине для избежания превышения лимитов модели
+     * Отправка запроса к OpenRouter API
+     * УПРОЩЕНО: Теперь только OpenRouter, без выбора провайдера
+     */
+    private String sendOpenRouterRequest(String systemPrompt, String userMessage, String context, Resource file) throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(openRouterApiKey);
+        headers.set("HTTP-Referer", "http://localhost:8080");
+        headers.set("X-Title", "Student Helper Bot");
+
+        List<Map<String, Object>> messages = new ArrayList<>();
+
+        Map<String, Object> systemMessage = new HashMap<>();
+        systemMessage.put("role", "system");
+        systemMessage.put("content", systemPrompt);
+        messages.add(systemMessage);
+
+        // Если userMessage не пустой, добавляем его
+        if (userMessage != null && !userMessage.isEmpty()) {
+            Map<String, Object> userMsg = new HashMap<>();
+            userMsg.put("role", "user");
+            userMsg.put("content", userMessage);
+            messages.add(userMsg);
+        }
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", openRouterModel);
+        requestBody.put("messages", messages);
+        requestBody.put("max_tokens", maxTokens);
+        requestBody.put("temperature", temperature);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+        String url = openRouterBaseUrl + "/chat/completions";
+        logger.debug("Отправка запроса к OpenRouter: {} с моделью {}", url, openRouterModel);
+
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+
+        if (response.getStatusCode().is2xxSuccessful()) {
+            JsonNode jsonResponse = objectMapper.readTree(response.getBody());
+            return jsonResponse.get("choices").get(0).get("message").get("content").asText();
+        } else {
+            String errorMsg = "OpenRouter API error: " + response.getStatusCode();
+            if (response.getBody() != null) {
+                errorMsg += " - " + response.getBody();
+            }
+            throw new RuntimeException(errorMsg);
+        }
+    }
+
+    /**
+     * Оптимизация контекста по длине
      */
     private String optimizeContext(List<String> chunks) {
         if (chunks.isEmpty()) {
@@ -176,7 +234,7 @@ public class AIService {
             }
 
             // Проверяем, не превысим ли лимит контекста
-            if (context.length() + chunk.length() + 50 > maxContextLength) { // +50 для разделителей
+            if (context.length() + chunk.length() + 50 > maxContextLength) {
                 // Если это первый чанк и он слишком большой, обрезаем его
                 if (chunksUsed == 0) {
                     String truncatedChunk = chunk.substring(0, Math.min(chunk.length(), maxContextLength - 100));
@@ -246,156 +304,26 @@ public class AIService {
     }
 
     /**
-     * Отправка запроса к AI API
-     */
-    private String sendAIRequest(String systemPrompt, String userMessage, String context, Resource file)
-            throws Exception {
-        if ("openrouter".equals(apiProvider)) {
-            return sendOpenRouterRequest(systemPrompt, userMessage, context, file);
-        } else if ("gemini".equals(apiProvider)) {
-            return sendGeminiRequest(systemPrompt, userMessage, context, file);
-        } else {
-            throw new IllegalStateException("Неподдерживаемый провайдер AI: " + apiProvider);
-        }
-    }
-
-    /**
-     * Отправка запроса к OpenRouter API
-     */
-    private String sendOpenRouterRequest(String systemPrompt, String userMessage, String context, Resource file) throws Exception {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(apiKey);
-        headers.set("HTTP-Referer", "http://localhost:8080");
-        headers.set("X-Title", "Student Helper Bot");
-
-        List<Map<String, Object>> messages = new ArrayList<>();
-
-        Map<String, Object> systemMessage = new HashMap<>();
-        systemMessage.put("role", "system");
-        systemMessage.put("content", systemPrompt);
-        messages.add(systemMessage);
-
-        // Если userMessage не пустой, добавляем его
-        if (userMessage != null && !userMessage.isEmpty()) {
-            Map<String, Object> userMsg = new HashMap<>();
-            userMsg.put("role", "user");
-            userMsg.put("content", userMessage);
-            messages.add(userMsg);
-        }
-
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", openRouterModel);
-        requestBody.put("messages", messages);
-        requestBody.put("max_tokens", maxTokens);
-        requestBody.put("temperature", temperature);
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
-        ResponseEntity<String> response = restTemplate.exchange(
-                openRouterBaseUrl + "/chat/completions",
-                HttpMethod.POST,
-                entity,
-                String.class
-        );
-
-        if (response.getStatusCode().is2xxSuccessful()) {
-            JsonNode jsonResponse = objectMapper.readTree(response.getBody());
-            return jsonResponse.get("choices").get(0).get("message").get("content").asText();
-        } else {
-            throw new RuntimeException("OpenRouter API error: " + response.getStatusCode());
-        }
-    }
-
-    /**
-     * Отправка запроса к Gemini API
-     */
-    private String sendGeminiRequest(String systemPrompt, String userMessage, String context, Resource file)
-            throws Exception {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        // Формируем контент
-        List<Map<String, Object>> parts = new ArrayList<>();
-
-        // Текстовая часть
-        Map<String, Object> textPart = new HashMap<>();
-        String fullPrompt = systemPrompt + "\n\n" + userMessage;
-        if (context != null) {
-            fullPrompt += "\n\nКонтекст: " + context;
-        }
-
-        textPart.put("text", fullPrompt);
-        parts.add(textPart);
-
-        // Если есть файл, добавляем его
-        if (file != null) {
-            try {
-                byte[] fileBytes = file.getInputStream().readAllBytes();
-                String base64File = Base64.getEncoder().encodeToString(fileBytes);
-
-                Map<String, Object> filePart = new HashMap<>();
-                Map<String, Object> inlineData = new HashMap<>();
-                inlineData.put("mime_type", "application/pdf"); // Определяем MIME-type
-                inlineData.put("data", base64File);
-                filePart.put("inline_data", inlineData);
-                parts.add(filePart);
-            } catch (IOException e) {
-                logger.warn("Не удалось прочитать файл для Gemini API: {}", e.getMessage());
-            }
-        }
-
-        // Тело запроса
-        Map<String, Object> content = new HashMap<>();
-        content.put("parts", parts);
-
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("contents", List.of(content));
-
-        // Конфигурация генерации
-        Map<String, Object> generationConfig = new HashMap<>();
-        generationConfig.put("maxOutputTokens", maxTokens);
-        generationConfig.put("temperature", temperature);
-        requestBody.put("generationConfig", generationConfig);
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-        String url = String.format("%s/models/%s:generateContent?key=%s",
-                geminiBaseUrl, geminiModel, apiKey);
-
-        ResponseEntity<String> response = restTemplate.exchange(
-                url,
-                HttpMethod.POST,
-                entity,
-                String.class
-        );
-
-        if (response.getStatusCode().is2xxSuccessful()) {
-            JsonNode jsonResponse = objectMapper.readTree(response.getBody());
-            return jsonResponse.get("candidates").get(0)
-                    .get("content").get("parts").get(0)
-                    .get("text").asText();
-        } else {
-            throw new RuntimeException("Gemini API error: " + response.getStatusCode());
-        }
-    }
-
-    /**
      * Проверка доступности AI API
      */
     public boolean isAIServiceAvailable() {
+        if (!openRouterEnabled) {
+            return false;
+        }
+
         try {
-            if ("openrouter".equals(apiProvider)) {
-                String testUrl = openRouterBaseUrl + "/models";
-                HttpHeaders headers = new HttpHeaders();
-                headers.setBearerAuth(apiKey);
-                HttpEntity<Map<String, Object>> entity = new HttpEntity<>(headers);
-                ResponseEntity<String> response = restTemplate.exchange(
-                        testUrl, HttpMethod.GET, entity, String.class);
-                return response.getStatusCode().is2xxSuccessful();
-            }
-            return true; // Для Gemini пока просто возвращаем true
+            String testUrl = openRouterBaseUrl + "/models";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(openRouterApiKey);
+            headers.set("HTTP-Referer", "http://localhost:8080");
+            headers.set("X-Title", "Student Helper Bot");
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(headers);
+            ResponseEntity<String> response = restTemplate.exchange(
+                    testUrl, HttpMethod.GET, entity, String.class);
+            return response.getStatusCode().is2xxSuccessful();
         } catch (Exception e) {
-            logger.warn("AI API недоступен: {}", e.getMessage());
+            logger.warn("OpenRouter API недоступен: {}", e.getMessage());
             return false;
         }
     }

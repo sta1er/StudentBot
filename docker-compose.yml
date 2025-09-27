@@ -113,37 +113,36 @@ services:
       - "8080:8080"
       - "80:80"
     environment:
-      # Database
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/studentbot
-      SPRING_DATASOURCE_USERNAME: studentbot
-      SPRING_DATASOURCE_PASSWORD: studentbot123
+      # OpenRouter (LLM)
+      OPENROUTER_ENABLED: "${OPENROUTER_ENABLED}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY}"
+      OPENROUTER_BASE_URL: "${OPENROUTER_BASE_URL}"
+      OPENROUTER_MODEL: "${OPENROUTER_MODEL}"
+      OPENROUTER_MAX_TOKENS: "${OPENROUTER_MAX_TOKENS}"
+      OPENROUTER_TEMPERATURE: "${OPENROUTER_TEMPERATURE}"
 
-      # MinIO
-      MINIO_URL: http://minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin123
+      # Embedding (Gemini)
+      EMBEDDING_PROVIDER: "${EMBEDDING_PROVIDER}"
+      GEMINI_EMBEDDING_API_KEY: "${GEMINI_EMBEDDING_API_KEY}"
+      GEMINI_BASE_URL: "${GEMINI_BASE_URL}"
+      GEMINI_EMBEDDING_MODEL: "${GEMINI_EMBEDDING_MODEL}"
+      GEMINI_TASK_TYPE: "${GEMINI_TASK_TYPE}"
 
-      # Qdrant (REST API)
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: 6333
-      QDRANT_VECTOR_SIZE: 1536
+      # Qdrant
+      QDRANT_HOST: "${QDRANT_HOST}"
+      QDRANT_PORT: "${QDRANT_PORT}"
+      QDRANT_API_KEY: "${QDRANT_API_KEY}"
+      QDRANT_VECTOR_SIZE: "${QDRANT_VECTOR_SIZE}"
 
-      # Telegram Bot (нужно задать переменные окружения)
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
-
-      # Mini App
-      MINIAPP_URL: ${MINIAPP_URL:-https://localhost/miniapp}
-
-      # AI API
-      AI_API_PROVIDER: openrouter
-      AI_API_KEY: ${AI_API_KEY}
-      OPENROUTER_MODEL: deepseek/deepseek-r1-0528:free
-
-      # Redis (опционально)
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_ENABLED: false
+      # Остальные
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
+      TELEGRAM_BOT_USERNAME: "${TELEGRAM_BOT_USERNAME}"
+      POSTGRES_DB: "${POSTGRES_DB}"
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      MINIO_URL: "${MINIO_URL}"
+      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY}"
+      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY}"
 
     depends_on:
       postgres:

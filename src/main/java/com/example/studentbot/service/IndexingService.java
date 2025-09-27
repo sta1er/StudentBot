@@ -121,7 +121,6 @@ public class IndexingService {
 
     @Async
     public void processAndIndexBook(BookMetadata metadata, InputStream bookStream) {
-        // ДОБАВЛЕНО: проверяем, что WebClient инициализирован
         if (webClient == null) {
             logger.error("WebClient не инициализирован. Индексация книги ID: {} пропущена", metadata.getId());
             return;
@@ -149,7 +148,7 @@ public class IndexingService {
             for (int i = 0; i < chunks.size(); i++) {
                 String chunk = chunks.get(i);
                 try {
-                    float[] vector = embeddingService.getEmbedding(chunk); // ИСПРАВЛЕНО: используем embeddingService
+                    float[] vector = embeddingService.getEmbedding(chunk);
                     if (vector.length != vectorSize) {
                         logger.warn("Размерность вектора {} не соответствует ожидаемой {}", vector.length, vectorSize);
                         continue;

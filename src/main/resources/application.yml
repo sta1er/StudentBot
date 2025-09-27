@@ -66,48 +66,64 @@ minio:
     books: books
     documents: documents
 
-# AI API Configuration
-ai:
-  api:
-    provider: ${AI_API_PROVIDER:openrouter} # openrouter, gemini
-    key: ${AI_API_KEY}
+# ===== РАЗДЕЛЕННАЯ КОНФИГУРАЦИЯ AI API =====
 
-  # OpenRouter settings
-  openrouter:
-    base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
-    model: ${OPENROUTER_MODEL:deepseek/deepseek-r1-0528:free}
+# OpenRouter Configuration (для языковых моделей)
+openrouter:
+  enabled: ${OPENROUTER_ENABLED:true}
+  api-key: ${OPENROUTER_API_KEY}
+  base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
+  model: ${OPENROUTER_MODEL:deepseek/deepseek-r1-0528:free}
+  # Параметры для языковых моделей
+  max-tokens: ${OPENROUTER_MAX_TOKENS:2000}
+  temperature: ${OPENROUTER_TEMPERATURE:0.7}
 
-  # Gemini settings
+# Google Gemini Embedding Configuration (для векторизации)
+embedding:
+  provider: ${EMBEDDING_PROVIDER:gemini} # gemini, openai, huggingface
+
+  # Gemini Embedding настройки
   gemini:
+    api-key: ${GEMINI_EMBEDDING_API_KEY}
     base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
-    model: ${GEMINI_MODEL:gemini-2.5-flash}
+    model: ${GEMINI_EMBEDDING_MODEL:models/text-embedding-004} # или embedding-001
+    # Gemini-specific настройки
+    task-type: ${GEMINI_TASK_TYPE:RETRIEVAL_DOCUMENT} # RETRIEVAL_DOCUMENT, RETRIEVAL_QUERY, SEMANTIC_SIMILARITY
 
-  # General AI settings
-  max-tokens: ${AI_MAX_TOKENS:2000}
-  temperature: ${AI_TEMPERATURE:0.7}
+  # OpenAI Embedding (альтернатива, если нужно)
+  openai:
+    api-key: ${OPENAI_EMBEDDING_API_KEY:}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
 
-  # RAG settings
-  rag:
-    max-context-length: ${AI_RAG_MAX_CONTEXT:3000} # Максимальная длина контекста для RAG
-    max-chunks: ${AI_RAG_MAX_CHUNKS:5} # Максимальное количество чанков для контекста
+  # Hugging Face Embedding (бесплатная альтернатива)
+  huggingface:
+    api-key: ${HUGGINGFACE_API_KEY:}
+    base-url: ${HUGGINGFACE_BASE_URL:https://api-inference.huggingface.co}
+    model: ${HUGGINGFACE_EMBEDDING_MODEL:sentence-transformers/all-MiniLM-L6-v2}
 
-# Qdrant Vector Database Configuration (REST API)
+# RAG Configuration
+rag:
+  max-context-length: ${RAG_MAX_CONTEXT:3000}
+  max-chunks: ${RAG_MAX_CHUNKS:5}
+
+# Qdrant Vector Database Configuration
 qdrant:
   host: ${QDRANT_HOST:localhost}
-  port: ${QDRANT_PORT:6333} # REST API порт (НЕ gRPC!)
-  api-key: ${QDRANT_API_KEY:} # Опциональный API ключ для аутентификации
+  port: ${QDRANT_PORT:6333}
+  api-key: ${QDRANT_API_KEY:}
   collection:
     name: "user_books_collection"
   vector:
-    size: ${QDRANT_VECTOR_SIZE:1536} # Размерность векторов (зависит от embedding модели)
+    size: ${QDRANT_VECTOR_SIZE:768} # ИЗМЕНЕНО: для Gemini embedding-004 (768), для embedding-001 (768)
   search:
-    limit: ${QDRANT_SEARCH_LIMIT:5} # Максимальное количество результатов поиска
-    score_threshold: ${QDRANT_SCORE_THRESHOLD:0.7} # Минимальный порог релевантности
+    limit: ${QDRANT_SEARCH_LIMIT:5}
+    score_threshold: ${QDRANT_SCORE_THRESHOLD:0.7}
 
 # Channel Subscription Configuration
 channel:
-  required: ${CHANNEL_REQUIRED:@chota_study} # Канал для обязательной подписки FREE пользователей
-  enabled: ${CHANNEL_CHECK_ENABLED:true} # Включить/выключить проверку подписки
+  required: ${CHANNEL_REQUIRED:@chota_study}
+  enabled: ${CHANNEL_CHECK_ENABLED:true}
 
 # Subscription Configuration
 subscription:
@@ -124,7 +140,6 @@ subscription:
       max-books: 100
       max-file-size-mb: 1000
       price: 29.99
-
   payment:
     enabled: ${PAYMENT_ENABLED:false}
     provider: ${PAYMENT_PROVIDER:stripe}
@@ -145,7 +160,7 @@ file:
 security:
   jwt:
     secret: ${JWT_SECRET:your-secret-key-change-in-production}
-    expiration: ${JWT_EXPIRATION:86400} # 24 hours
+    expiration: ${JWT_EXPIRATION:86400}
   rate-limiting:
     enabled: ${RATE_LIMITING_ENABLED:true}
     requests-per-minute: 60
@@ -158,7 +173,7 @@ logging:
     org.springframework: WARN
     org.hibernate: WARN
     org.telegram: WARN
-    org.springframework.web.reactive.function.client: DEBUG # Включаем отладку для WebClient
+    org.springframework.web.reactive.function.client: DEBUG
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n"
@@ -201,7 +216,7 @@ features:
   ai:
     enabled: true
     multi-model: true
-    rag: true # Включение RAG функциональности
+    rag: true
   analytics:
     enabled: ${ANALYTICS_ENABLED:false}
     service: ${ANALYTICS_SERVICE:google}
