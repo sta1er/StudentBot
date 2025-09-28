@@ -78,11 +78,11 @@ openrouter:
   max-tokens: ${OPENROUTER_MAX_TOKENS:2000}
   temperature: ${OPENROUTER_TEMPERATURE:0.7}
 
-# Google Gemini Embedding Configuration (для векторизации)
+# Embedding Configuration (для векторизации)
 embedding:
-  provider: ${EMBEDDING_PROVIDER:gemini} # gemini, openai, huggingface
+  provider: ${EMBEDDING_PROVIDER:yandex} # gemini, openai, huggingface, yandex
 
-  # Gemini Embedding настройки
+  # Gemini Embedding
   gemini:
     api-key: ${GEMINI_EMBEDDING_API_KEY}
     base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
@@ -90,17 +90,24 @@ embedding:
     # Gemini-specific настройки
     task-type: ${GEMINI_TASK_TYPE:RETRIEVAL_DOCUMENT} # RETRIEVAL_DOCUMENT, RETRIEVAL_QUERY, SEMANTIC_SIMILARITY
 
-  # OpenAI Embedding (альтернатива, если нужно)
+  # OpenAI Embedding
   openai:
     api-key: ${OPENAI_EMBEDDING_API_KEY:}
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
     model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
 
-  # Hugging Face Embedding (бесплатная альтернатива)
+  # Hugging Face Embedding
   huggingface:
     api-key: ${HUGGINGFACE_API_KEY:}
     base-url: ${HUGGINGFACE_BASE_URL:https://api-inference.huggingface.co}
     model: ${HUGGINGFACE_EMBEDDING_MODEL:sentence-transformers/all-MiniLM-L6-v2}
+
+  # Yandex Cloud Embedding
+  yandex:
+    api-key: ${YANDEX_EMBEDDING_API_KEY}
+    base-url: ${YANDEX_BASE_URL:https://llm.api.cloud.yandex.net}
+    folder-id: ${YANDEX_FOLDER_ID}
+    model: ${YANDEX_EMBEDDING_MODEL:text-search-doc} # text-search-doc или text-search-query
 
 # RAG Configuration
 rag:
@@ -115,7 +122,7 @@ qdrant:
   collection:
     name: "user_books_collection"
   vector:
-    size: ${QDRANT_VECTOR_SIZE:768} # ИЗМЕНЕНО: для Gemini embedding-004 (768), для embedding-001 (768)
+    size: ${QDRANT_VECTOR_SIZE:256}
   search:
     limit: ${QDRANT_SEARCH_LIMIT:5}
     score_threshold: ${QDRANT_SCORE_THRESHOLD:0.7}

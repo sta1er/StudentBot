@@ -57,6 +57,19 @@ public class EmbeddingService {
     @Value("${embedding.huggingface.model:sentence-transformers/all-MiniLM-L6-v2}")
     private String huggingfaceModel;
 
+    // Yandex Embedding настройки
+    @Value("${embedding.yandex.api-key:}")
+    private String yandexApiKey;
+
+    @Value("${embedding.yandex.base-url:https://llm.api.cloud.yandex.net}")
+    private String yandexBaseUrl;
+
+    @Value("${embedding.yandex.folder-id:}")
+    private String yandexFolderId;
+
+    @Value("${embedding.yandex.model:text-search-doc}")
+    private String yandexModel; // text-search-doc или text-search-query
+
     public EmbeddingService(RestTemplate restTemplate, ObjectMapper objectMapper) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
@@ -84,6 +97,8 @@ public class EmbeddingService {
                 return getOpenAIEmbedding(truncatedText);
             case "huggingface":
                 return getHuggingFaceEmbedding(truncatedText);
+            case "yandex":
+                return getYandexEmbedding(truncatedText);
             default:
                 throw new IllegalArgumentException("Неподдерживаемый провайдер embedding: " + embeddingProvider);
         }
@@ -238,6 +253,61 @@ public class EmbeddingService {
     }
 
     /**
+     * Получение embedding через Yandex Cloud Foundation Models API
+     */
+    private float[] getYandexEmbedding(String text) throws Exception {
+        if (yandexApiKey == null || yandexApiKey.trim().isEmpty()) {
+            throw new RuntimeException("Yandex API ключ не настроен. Задайте YANDEX_EMBEDDING_API_KEY");
+        }
+
+        if (yandexFolderId == null || yandexFolderId.trim().isEmpty()) {
+            throw new RuntimeException("Yandex Folder ID не настроен. Задайте YANDEX_FOLDER_ID");
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Authorization", "Api-Key " + yandexApiKey);
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("modelUri", String.format("emb://%s/%s/latest", yandexFolderId, yandexModel));
+        requestBody.put("text", text);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+        String url = yandexBaseUrl + "/foundationModels/v1/textEmbedding";
+
+        logger.debug("Отправка запроса к Yandex API: {}", url);
+
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+
+        if (response.getStatusCode().is2xxSuccessful()) {
+            JsonNode jsonResponse = objectMapper.readTree(response.getBody());
+            JsonNode embeddingNode = jsonResponse.get("embedding");
+
+            if (embeddingNode == null || !embeddingNode.isArray()) {
+                throw new RuntimeException("Неожиданный формат ответа от Yandex API");
+            }
+
+            float[] vector = new float[embeddingNode.size()];
+            for (int i = 0; i < embeddingNode.size(); i++) {
+                vector[i] = embeddingNode.get(i).floatValue();
+            }
+
+            logger.debug("Получен Yandex вектор размерности {} для текста длиной {} символов",
+                    vector.length, text.length());
+
+            return vector;
+        } else {
+            String errorMsg = "Yandex Embedding API error: " + response.getStatusCode();
+            if (response.getBody() != null) {
+                errorMsg += " - " + response.getBody();
+            }
+            throw new RuntimeException(errorMsg);
+        }
+    }
+
+
+    /**
      * Проверка доступности embedding сервиса
      */
     public boolean isEmbeddingServiceAvailable() {
@@ -268,6 +338,8 @@ public class EmbeddingService {
                 // all-MiniLM-L6-v2: 384 dimensions
                 // Другие модели могут иметь разные размерности
                 return 384;
+            case "yandex":
+                return 256;
             default:
                 return 768; // По умолчанию для Gemini
         }
