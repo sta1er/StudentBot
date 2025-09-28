@@ -41,7 +41,7 @@ public class IndexingService {
     @Value("${qdrant.collection.name}")
     private String collectionName;
 
-    @Value("${qdrant.vector.size:1536}")
+    @Value("${qdrant.vector.size:256}")
     private int vectorSize;
 
     @Value("${qdrant.api-key:}")

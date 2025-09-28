@@ -9,6 +9,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -266,6 +267,7 @@ public class EmbeddingService {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
         headers.set("Authorization", "Api-Key " + yandexApiKey);
 
         Map<String, Object> requestBody = new HashMap<>();
@@ -273,36 +275,39 @@ public class EmbeddingService {
         requestBody.put("text", text);
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
         String url = yandexBaseUrl + "/foundationModels/v1/textEmbedding";
 
         logger.debug("Отправка запроса к Yandex API: {}", url);
 
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
 
-        if (response.getStatusCode().is2xxSuccessful()) {
-            JsonNode jsonResponse = objectMapper.readTree(response.getBody());
-            JsonNode embeddingNode = jsonResponse.get("embedding");
+            if (response.getStatusCode().is2xxSuccessful()) {
+                JsonNode jsonResponse = objectMapper.readTree(response.getBody());
+                JsonNode embeddingNode = jsonResponse.get("embedding");
 
-            if (embeddingNode == null || !embeddingNode.isArray()) {
-                throw new RuntimeException("Неожиданный формат ответа от Yandex API");
+                if (embeddingNode == null || !embeddingNode.isArray()) {
+                    throw new RuntimeException("Неожиданный формат ответа от Yandex API");
+                }
+
+                float[] vector = new float[embeddingNode.size()];
+                for (int i = 0; i < embeddingNode.size(); i++) {
+                    vector[i] = embeddingNode.get(i).floatValue();
+                }
+
+                logger.debug("Получен Yandex вектор размерности {} для текста длиной {} символов",
+                        vector.length, text.length());
+                return vector;
+            } else {
+                String errorMsg = "Yandex Embedding API error: " + response.getStatusCode();
+                if (response.getBody() != null) {
+                    errorMsg += " - " + response.getBody();
+                }
+                throw new RuntimeException(errorMsg);
             }
-
-            float[] vector = new float[embeddingNode.size()];
-            for (int i = 0; i < embeddingNode.size(); i++) {
-                vector[i] = embeddingNode.get(i).floatValue();
-            }
-
-            logger.debug("Получен Yandex вектор размерности {} для текста длиной {} символов",
-                    vector.length, text.length());
-
-            return vector;
-        } else {
-            String errorMsg = "Yandex Embedding API error: " + response.getStatusCode();
-            if (response.getBody() != null) {
-                errorMsg += " - " + response.getBody();
-            }
-            throw new RuntimeException(errorMsg);
+        } catch (Exception e) {
+            logger.error("Ошибка при обращении к Yandex API: {}", e.getMessage());
+            throw e;
         }
     }
 

@@ -9,6 +9,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import javax.annotation.PostConstruct;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -20,7 +21,7 @@ import java.util.concurrent.CompletableFuture;
 public class VectorSearchService {
     private static final Logger logger = LoggerFactory.getLogger(VectorSearchService.class);
 
-    private final WebClient webClient;
+    private WebClient webClient;
     private final ObjectMapper objectMapper;
 
     @Value("${qdrant.host:localhost}")
@@ -43,16 +44,26 @@ public class VectorSearchService {
 
     public VectorSearchService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
+    }
+
+    @PostConstruct
+    public void initializeWebClient() {
         this.webClient = WebClient.builder()
                 .baseUrl(String.format("http://%s:%d", qdrantHost, qdrantPort))
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                 .build();
+
+        logger.info("VectorSearchService WebClient инициализирован для Qdrant: http://{}:{}",
+                qdrantHost, qdrantPort);
     }
 
-    /**
-     * Поиск релевантных фрагментов текста для пользователя
-     */
     public List<String> findRelevantChunks(Long userId, float[] queryVector) {
+        if (webClient == null) {
+            logger.error("WebClient не инициализирован для поиска векторов");
+            return Collections.emptyList();
+        }
+
         try {
             logger.debug("Поиск релевантных фрагментов для пользователя {} с вектором размерности {}",
                     userId, queryVector.length);
