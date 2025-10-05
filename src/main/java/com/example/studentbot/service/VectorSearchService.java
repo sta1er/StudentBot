@@ -9,8 +9,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-import javax.annotation.PostConstruct;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import javax.annotation.PostConstruct;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
@@ -53,7 +54,6 @@ public class VectorSearchService {
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                 .build();
-
         logger.info("VectorSearchService WebClient инициализирован для Qdrant: http://{}:{}",
                 qdrantHost, qdrantPort);
     }
@@ -64,23 +64,39 @@ public class VectorSearchService {
             return Collections.emptyList();
         }
 
+        if (queryVector == null || queryVector.length == 0) {
+            logger.error("Вектор запроса пуст или null для пользователя {}", userId);
+            return Collections.emptyList();
+        }
+
         try {
             logger.debug("Поиск релевантных фрагментов для пользователя {} с вектором размерности {}",
                     userId, queryVector.length);
 
             Map<String, Object> searchRequest = createSearchRequest(queryVector, createUserFilter(userId));
 
+            logger.debug("Запрос к Qdrant: {}", objectMapper.writeValueAsString(searchRequest));
+
             CompletableFuture<List<String>> searchFuture = performSearch(searchRequest);
             List<String> results = searchFuture.get();
 
             if (!results.isEmpty()) {
                 logger.info("Найдено {} релевантных фрагментов для пользователя {}", results.size(), userId);
+            } else {
+                logger.debug("Не найдено релевантных фрагментов для пользователя {}", userId);
             }
 
             return results;
 
         } catch (Exception e) {
             logger.error("Ошибка при поиске для пользователя {}: {}", userId, e.getMessage(), e);
+
+            if (e.getCause() instanceof WebClientResponseException) {
+                WebClientResponseException webEx = (WebClientResponseException) e.getCause();
+                logger.error("Детали ошибки Qdrant - Статус: {}, Тело ответа: {}",
+                        webEx.getStatusCode(), webEx.getResponseBodyAsString());
+            }
+
             return Collections.emptyList();
         }
     }
@@ -89,10 +105,16 @@ public class VectorSearchService {
      * Поиск по конкретной книге
      */
     public List<String> findRelevantChunksInBook(Long userId, Long bookId, float[] queryVector) {
+        if (queryVector == null || queryVector.length == 0) {
+            logger.error("Вектор запроса пуст или null для пользователя {} и книги {}", userId, bookId);
+            return Collections.emptyList();
+        }
+
         try {
             logger.debug("Поиск в книге {} для пользователя {}", bookId, userId);
 
             Map<String, Object> searchRequest = createSearchRequest(queryVector, createBookFilter(userId, bookId));
+            logger.debug("Запрос поиска в книге: {}", objectMapper.writeValueAsString(searchRequest));
 
             CompletableFuture<List<String>> searchFuture = performSearch(searchRequest);
             return searchFuture.get();
@@ -114,6 +136,15 @@ public class VectorSearchService {
                 .retrieve()
                 .bodyToMono(String.class)
                 .map(this::parseSearchResponse)
+                .doOnError(error -> {
+                    logger.error("Ошибка при выполнении поиска в Qdrant: {}", error.getMessage());
+                    if (error instanceof WebClientResponseException) {
+                        WebClientResponseException webError = (WebClientResponseException) error;
+                        logger.error("HTTP статус: {}, Тело ответа: {}",
+                                webError.getStatusCode(), webError.getResponseBodyAsString());
+                    }
+                })
+                .onErrorReturn(Collections.emptyList())
                 .toFuture();
     }
 
@@ -122,12 +153,19 @@ public class VectorSearchService {
      */
     private Map<String, Object> createSearchRequest(float[] queryVector, Map<String, Object> filter) {
         Map<String, Object> request = new HashMap<>();
-        request.put("vector", queryVector);
+
+        // Преобразуем float[] в List<Float> для корректной JSON сериализации
+        List<Float> vectorList = new ArrayList<>();
+        for (float f : queryVector) {
+            vectorList.add(f);
+        }
+
+        request.put("vector", vectorList);
         request.put("limit", searchLimit);
         request.put("score_threshold", scoreThreshold);
         request.put("with_payload", true);
 
-        if (filter != null) {
+        if (filter != null && !filter.isEmpty()) {
             request.put("filter", filter);
         }
 
@@ -171,16 +209,20 @@ public class VectorSearchService {
      */
     private List<String> parseSearchResponse(String responseBody) {
         try {
+            if (responseBody == null || responseBody.trim().isEmpty()) {
+                logger.debug("Пустой ответ от Qdrant");
+                return Collections.emptyList();
+            }
+
             JsonNode root = objectMapper.readTree(responseBody);
             JsonNode result = root.get("result");
 
             if (result == null || !result.isArray()) {
-                logger.debug("Пустой результат поиска");
+                logger.debug("Пустой результат поиска или неожиданная структура ответа");
                 return Collections.emptyList();
             }
 
             List<String> texts = new ArrayList<>();
-
             for (JsonNode item : result) {
                 JsonNode payload = item.get("payload");
                 if (payload != null) {
@@ -198,6 +240,7 @@ public class VectorSearchService {
 
         } catch (Exception e) {
             logger.error("Ошибка при парсинге ответа поиска: {}", e.getMessage(), e);
+            logger.error("Тело ответа: {}", responseBody);
             return Collections.emptyList();
         }
     }
@@ -237,7 +280,6 @@ public class VectorSearchService {
         try {
             JsonNode root = objectMapper.readTree(responseBody);
             JsonNode result = root.get("result");
-
             if (result == null) {
                 return new VectorStats(0, 0);
             }
@@ -266,6 +308,44 @@ public class VectorSearchService {
         } catch (Exception e) {
             logger.error("Ошибка при парсинге статистики: {}", e.getMessage(), e);
             return new VectorStats(0, 0);
+        }
+    }
+
+    /**
+     * Проверка доступности Qdrant
+     */
+    public boolean isQdrantAvailable() {
+        try {
+            String response = webClient.get()
+                    .uri("/collections")
+                    .headers(this::addApiKeyHeader)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            return response != null;
+        } catch (Exception e) {
+            logger.warn("Qdrant недоступен: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Проверка существования коллекции
+     */
+    public boolean isCollectionAvailable() {
+        try {
+            String response = webClient.get()
+                    .uri("/collections/{collection_name}", collectionName)
+                    .headers(this::addApiKeyHeader)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            return response != null;
+        } catch (Exception e) {
+            logger.warn("Коллекция {} недоступна: {}", collectionName, e.getMessage());
+            return false;
         }
     }
 

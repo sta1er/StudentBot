@@ -1,7 +1,6 @@
 package com.example.studentbot.service;
 
 import com.example.studentbot.model.BookMetadata;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -29,7 +28,6 @@ public class IndexingService {
     private static final Logger logger = LoggerFactory.getLogger(IndexingService.class);
 
     private final EmbeddingService embeddingService;
-    private final ObjectMapper objectMapper;
     private WebClient webClient;
 
     @Value("${qdrant.host:localhost}")
@@ -52,9 +50,8 @@ public class IndexingService {
     private static final int CHUNK_OVERLAP = 50;
     private static final int MAX_CHUNK_LENGTH = 500;
 
-    public IndexingService(EmbeddingService embeddingService, ObjectMapper objectMapper) {
+    public IndexingService(EmbeddingService embeddingService) {
         this.embeddingService = embeddingService;
-        this.objectMapper = objectMapper;
     }
 
     @PostConstruct
@@ -64,12 +61,18 @@ public class IndexingService {
                     .baseUrl(String.format("http://%s:%d", qdrantHost, qdrantPort))
                     .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .build();
-
             logger.info("WebClient создан для Qdrant: http://{}:{}", qdrantHost, qdrantPort);
+
+            // проверяем реальную размерность векторов от EmbeddingService
+            int embeddingDimensions = embeddingService.getVectorDimensions();
+            if (vectorSize != embeddingDimensions) {
+                logger.warn("ВНИМАНИЕ: Настроенная размерность векторов ({}) не соответствует размерности провайдера embedding ({}). " +
+                        "Обновляем размерность до {}.", vectorSize, embeddingDimensions, embeddingDimensions);
+                vectorSize = embeddingDimensions;
+            }
 
             // Проверяем существование коллекции
             CompletableFuture<Boolean> collectionExists = checkCollectionExists();
-
             if (!collectionExists.get()) {
                 // Коллекция не существует, создаем её
                 logger.info("Создание коллекции {} с размерностью векторов {}", collectionName, vectorSize);
@@ -78,6 +81,7 @@ public class IndexingService {
             } else {
                 logger.info("Коллекция {} уже существует", collectionName);
             }
+
         } catch (Exception e) {
             logger.error("Ошибка при инициализации коллекции Qdrant: {}", e.getMessage(), e);
             logger.warn("Приложение будет запущено без векторной базы данных. Qdrant может быть недоступен.");
@@ -131,7 +135,6 @@ public class IndexingService {
 
         try {
             String text = extractTextFromFile(bookStream, metadata.getFileType());
-
             if (text == null || text.trim().isEmpty()) {
                 logger.warn("Не удалось извлечь текст из книги ID: {}", metadata.getId());
                 return;
@@ -149,13 +152,18 @@ public class IndexingService {
                 String chunk = chunks.get(i);
                 try {
                     float[] vector = embeddingService.getEmbedding(chunk);
+
+                    // проверяем размерность от реального вектора
                     if (vector.length != vectorSize) {
-                        logger.warn("Размерность вектора {} не соответствует ожидаемой {}", vector.length, vectorSize);
-                        continue;
+                        logger.warn("Размерность полученного вектора {} не соответствует ожидаемой {}. " +
+                                "Обновляем конфигурацию размерности.", vector.length, vectorSize);
+                        // Обновляем vectorSize для следующих операций
+                        vectorSize = vector.length;
                     }
 
                     points.add(createPoint(vector, metadata, chunk, i));
                     successfulChunks++;
+
                 } catch (Exception e) {
                     logger.warn("Не удалось получить вектор для чанка {} книги ID: {}. Ошибка: {}",
                             i, metadata.getId(), e.getMessage());
@@ -245,7 +253,6 @@ public class IndexingService {
 
         // Сначала разбиваем по предложениям
         String[] sentences = text.split("(?<=[.!?])\\s+");
-
         StringBuilder currentChunk = new StringBuilder();
         int currentLength = 0;
 
@@ -289,6 +296,7 @@ public class IndexingService {
         if (lastSentence > 0) {
             return overlap.substring(lastSentence + 1).trim();
         }
+
         return overlap;
     }
 
@@ -333,6 +341,25 @@ public class IndexingService {
     private void addApiKeyHeader(HttpHeaders headers) {
         if (apiKey != null && !apiKey.trim().isEmpty()) {
             headers.set("api-key", apiKey);
+        }
+    }
+
+    /**
+     * Получение текущей размерности векторов
+     * Позволяет другим сервисам узнать актуальную размерность
+     */
+    public int getCurrentVectorSize() {
+        return vectorSize;
+    }
+
+    /**
+     * Обновление размерности векторов
+     * Позволяет динамически изменить размерность при несоответствии
+     */
+    public void updateVectorSize(int newSize) {
+        if (newSize != this.vectorSize) {
+            logger.info("Обновление размерности векторов с {} на {}", this.vectorSize, newSize);
+            this.vectorSize = newSize;
         }
     }
 }

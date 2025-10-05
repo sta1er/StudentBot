@@ -9,7 +9,6 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,8 +20,8 @@ public class EmbeddingService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    // Провайдер embedding (gemini, openai, huggingface)
-    @Value("${embedding.provider:gemini}")
+    // Провайдер embedding (gemini, openai, huggingface, yandex)
+    @Value("${embedding.provider:yandex}")
     private String embeddingProvider;
 
     // Gemini Embedding настройки
@@ -87,7 +86,6 @@ public class EmbeddingService {
 
         // Обрезаем текст если он слишком длинный
         String truncatedText = text.length() > 8000 ? text.substring(0, 8000) : text;
-
         logger.debug("Получение embedding через провайдера: {} для текста длиной {} символов",
                 embeddingProvider, truncatedText.length());
 
@@ -127,7 +125,6 @@ public class EmbeddingService {
         requestBody.put("task_type", geminiTaskType);
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
         String url = String.format("%s/%s:embedContent?key=%s",
                 geminiBaseUrl, geminiModel, geminiApiKey);
 
@@ -150,7 +147,6 @@ public class EmbeddingService {
 
             logger.debug("Получен Gemini вектор размерности {} для текста длиной {} символов",
                     vector.length, text.length());
-
             return vector;
         } else {
             String errorMsg = "Gemini Embedding API error: " + response.getStatusCode();
@@ -193,7 +189,6 @@ public class EmbeddingService {
 
             logger.debug("Получен OpenAI вектор размерности {} для текста длиной {} символов",
                     vector.length, text.length());
-
             return vector;
         } else {
             String errorMsg = "OpenAI Embedding API error: " + response.getStatusCode();
@@ -242,7 +237,6 @@ public class EmbeddingService {
 
             logger.debug("Получен HuggingFace вектор размерности {} для текста длиной {} символов",
                     vector.length, text.length());
-
             return vector;
         } else {
             String errorMsg = "HuggingFace API error: " + response.getStatusCode();
@@ -267,7 +261,6 @@ public class EmbeddingService {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
         headers.set("Authorization", "Api-Key " + yandexApiKey);
 
         Map<String, Object> requestBody = new HashMap<>();
@@ -310,7 +303,6 @@ public class EmbeddingService {
             throw e;
         }
     }
-
 
     /**
      * Проверка доступности embedding сервиса

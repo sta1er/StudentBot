@@ -168,14 +168,11 @@ public class AIService {
 
     /**
      * Отправка запроса к OpenRouter API
-     * УПРОЩЕНО: Теперь только OpenRouter, без выбора провайдера
      */
     private String sendOpenRouterRequest(String systemPrompt, String userMessage, String context, Resource file) throws Exception {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(openRouterApiKey);
-        headers.set("HTTP-Referer", "http://localhost:8080");
-        headers.set("X-Title", "Student Helper Bot");
 
         List<Map<String, Object>> messages = new ArrayList<>();
 
@@ -195,8 +192,8 @@ public class AIService {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", openRouterModel);
         requestBody.put("messages", messages);
-        requestBody.put("max_tokens", maxTokens);
-        requestBody.put("temperature", temperature);
+        /*requestBody.put("max_tokens", maxTokens);
+        requestBody.put("temperature", temperature);*/
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
