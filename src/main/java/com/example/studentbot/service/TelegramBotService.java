@@ -3,13 +3,16 @@ package com.example.studentbot.service;
 import com.example.studentbot.model.User;
 import com.example.studentbot.service.UserService;
 import com.example.studentbot.service.SubscriptionValidationService;
+import com.example.studentbot.utils.TelegramMessageUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
+import org.telegram.telegrambots.meta.api.methods.ParseMode;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.*;
@@ -20,6 +23,10 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+
+import static com.example.studentbot.utils.TelegramMessageUtils.TELEGRAM_MESSAGE_LIMIT;
 
 @Component
 public class TelegramBotService extends TelegramLongPollingBot {
@@ -43,6 +50,10 @@ public class TelegramBotService extends TelegramLongPollingBot {
 
     @Autowired
     private SubscriptionValidationService subscriptionValidationService;
+
+    @Autowired
+    @Qualifier("taskExecutor")
+    private Executor taskExecutor;
 
     @Override
     public String getBotToken() {
@@ -320,7 +331,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
     }
 
     /**
-     * Обработка текстовых сообщений
+     * Обработка текстовых сообщений с поддержкой длинных ответов
      */
     private void handleTextMessage(Long chatId, String messageText, User user) {
         // Проверяем доступ перед обработкой текстовых сообщений
@@ -330,9 +341,17 @@ public class TelegramBotService extends TelegramLongPollingBot {
 
         try {
             sendChatAction(chatId, "typing");
+
             // Получаем ответ от AI сервиса
             String aiResponse = aiService.processTextMessage(messageText, user.getTelegramId());
-            sendMessage(chatId, aiResponse);
+
+            // Используем асинхронную отправку для длинных ответов
+            if (aiResponse.length() > TELEGRAM_MESSAGE_LIMIT / 2) {
+                sendMessageAsync(chatId, aiResponse);
+            } else {
+                sendMessage(chatId, aiResponse);
+            }
+
         } catch (Exception e) {
             logger.error("Ошибка при обработке текстового сообщения: {}", e.getMessage(), e);
             sendMessage(chatId, "😔 Извините, произошла ошибка при обработке вашего сообщения. Попробуйте еще раз.");
@@ -483,19 +502,12 @@ public class TelegramBotService extends TelegramLongPollingBot {
     }
 
     /**
-     * Отправка простого сообщения
+     * Отправка длинного сообщения с автоматическим разбиением
      */
     private void sendMessage(Long chatId, String text) {
-        SendMessage message = new SendMessage();
-        message.setChatId(chatId.toString());
-        message.setText(text);
-        // Убираем parseMode по умолчанию, чтобы избежать ошибок парсинга
-        // message.setParseMode("Markdown");
-
-        try {
-            execute(message);
-        } catch (TelegramApiException e) {
-            logger.error("Ошибка при отправке сообщения: {}", e.getMessage(), e);
+        List<String> messageParts = TelegramMessageUtils.splitTextPreservingCodeBlocks(text);
+        for (String part : messageParts) {
+            sendMessagePart(chatId, part);
         }
     }
 
@@ -595,5 +607,68 @@ public class TelegramBotService extends TelegramLongPollingBot {
         button.setText(text);
         button.setUrl(url);
         return button;
+    }
+
+    /**
+     * Отправка одной части сообщения (вспомогательный метод)
+     */
+    private void sendMessagePart(Long chatId, String text) {
+        SendMessage message = new SendMessage();
+        message.setChatId(chatId.toString());
+        message.setText(text);
+
+        // Определяем, нужен ли Markdown парсинг
+        if (containsMarkdown(text)) {
+            message.setParseMode(ParseMode.MARKDOWN);
+        }
+
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            logger.error("Ошибка при отправке части сообщения: {}", e.getMessage(), e);
+
+            // Если ошибка связана с парсингом Markdown, отправляем без форматирования
+            if (e.getMessage().contains("parse") || e.getMessage().contains("markdown")) {
+                sendPlainMessage(chatId, text);
+            }
+        }
+    }
+
+    /**
+     * Отправка сообщения без форматирования (fallback)
+     */
+    private void sendPlainMessage(Long chatId, String text) {
+        SendMessage message = new SendMessage();
+        message.setChatId(chatId.toString());
+        message.setText(text);
+
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            logger.error("Критическая ошибка при отправке простого сообщения: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Проверяет, содержит ли текст Markdown форматирование
+     */
+    private boolean containsMarkdown(String text) {
+        return text.contains("```") ||
+                text.contains("**") ||
+                text.contains("__") ||
+                text.contains("`") ||
+                (text.contains("*") && !text.replaceAll("\\\\\\*", "").equals(text.replaceAll("\\*", "")));
+    }
+
+    /**
+     * Асинхронная версия отправки длинных сообщений
+     */
+    private void sendMessageAsync(Long chatId, String text) {
+        CompletableFuture
+                .runAsync(() -> sendMessage(chatId, text), taskExecutor)
+                .exceptionally(throwable -> {
+                    logger.error("Ошибка при асинхронной отправке сообщения: {}", throwable.getMessage(), throwable);
+                    return null;
+                });
     }
 }
