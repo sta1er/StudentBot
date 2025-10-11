@@ -46,9 +46,9 @@ public class IndexingService {
     private String apiKey;
 
     // Оптимизированные размеры чанков
-    private static final int CHUNK_SIZE = 200;
+    private static final int CHUNK_SIZE = 150;
     private static final int CHUNK_OVERLAP = 50;
-    private static final int MAX_CHUNK_LENGTH = 500;
+    private static final int MAX_CHUNK_LENGTH = 600;
 
     public IndexingService(EmbeddingService embeddingService) {
         this.embeddingService = embeddingService;

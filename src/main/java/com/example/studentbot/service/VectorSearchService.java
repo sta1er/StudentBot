@@ -34,10 +34,10 @@ public class VectorSearchService {
     @Value("${qdrant.collection.name}")
     private String collectionName;
 
-    @Value("${qdrant.search.limit:5}")
+    @Value("${qdrant.search.limit:8}")
     private int searchLimit;
 
-    @Value("${qdrant.search.score_threshold:0.7}")
+    @Value("${qdrant.search.score_threshold:0.75}")
     private double scoreThreshold;
 
     @Value("${qdrant.api-key:}")
@@ -154,7 +154,6 @@ public class VectorSearchService {
     private Map<String, Object> createSearchRequest(float[] queryVector, Map<String, Object> filter) {
         Map<String, Object> request = new HashMap<>();
 
-        // Преобразуем float[] в List<Float> для корректной JSON сериализации
         List<Float> vectorList = new ArrayList<>();
         for (float f : queryVector) {
             vectorList.add(f);

@@ -124,8 +124,8 @@ qdrant:
   vector:
     size: ${QDRANT_VECTOR_SIZE:256}
   search:
-    limit: ${QDRANT_SEARCH_LIMIT:5}
-    score_threshold: ${QDRANT_SCORE_THRESHOLD:0.7}
+    limit: ${QDRANT_SEARCH_LIMIT:8}
+    score_threshold: ${QDRANT_SCORE_THRESHOLD:0.75}
 
 # Channel Subscription Configuration
 channel:
