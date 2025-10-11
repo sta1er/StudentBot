@@ -84,6 +84,7 @@ public class AIService {
 
             // Оптимизируем контекст по длине
             String optimizedContext = optimizeContext(relevantChunks);
+            logger.info("Системные данные которые мы отправляем LLM: {}", optimizedContext);
             String augmentedPrompt = buildAugmentedPrompt(optimizedContext, message);
 
             logger.debug("Используется контекст длиной {} символов из {} фрагментов",
